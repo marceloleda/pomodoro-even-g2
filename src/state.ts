@@ -71,7 +71,7 @@ export function buildStatusLine(): string {
 
 export function buildMenuText(): string {
   return ACTIONS.map((a, i) =>
-    i === selectedIndex ? `[ ${a} ]` : `  ${a}`
+    i === selectedIndex ? `[${a}]` : ` ${a} `
   ).join('\n');
 }
 
