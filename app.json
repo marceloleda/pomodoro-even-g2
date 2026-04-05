@@ -1,0 +1,12 @@
+{
+  "package_id": "com.marcelo.pomodoro",
+  "edition": "202604",
+  "name": "Pomodoro",
+  "version": "0.1.0",
+  "min_app_version": "0.1.0",
+  "tagline": "Focus timer with work/break cycles for Even G2.",
+  "description": "Pomodoro technique timer for Even G2. 25-minute work sessions with 5-minute short breaks and 15-minute long breaks. Navigate with touchbar: Start, Pause, Reset, Skip.",
+  "author": "Marcelo",
+  "entrypoint": "index.html",
+  "permissions": {}
+}
