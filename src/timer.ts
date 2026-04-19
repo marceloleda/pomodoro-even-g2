@@ -6,26 +6,58 @@ import {
 } from './state';
 import { updateTimerDisplay, updateAllText, updateStatusLine, updateDotsLine, sendIcon } from './glasses/display';
 
+let renderInFlight = false;
+let currentTick: (() => void) | null = null;
+
+function scheduleRender() {
+  if (renderInFlight) return;
+  renderInFlight = true;
+  void updateTimerDisplay().finally(() => { renderInFlight = false; });
+}
+
 export function startTimer() {
   if (running) return;
   setRunning(true);
   const myGen = incrementGeneration();
   void updateStatusLine();
 
+  const startedAt = Date.now();
+  const initialTimeLeft = timeLeft;
+
   const tick = async () => {
     if (!running || myGen !== timerGeneration) return;
-    if (timeLeft <= 0) {
+
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    const newTimeLeft = Math.max(0, initialTimeLeft - elapsed);
+    setTimeLeft(newTimeLeft);
+
+    if (newTimeLeft <= 0) {
+      await updateTimerDisplay();
       await handleTimerEnd();
       return;
     }
-    setTimeLeft(timeLeft - 1);
-    await updateTimerDisplay();
-    if (running && myGen === timerGeneration) {
-      setTimerTimeout(setTimeout(tick, 1000));
-    }
+
+    // Align next tick to the next wall-clock second, before the render,
+    // so Bluetooth latency and background throttling don't drift the clock.
+    const nextDelay = 1000 - ((Date.now() - startedAt) % 1000);
+    setTimerTimeout(setTimeout(tick, nextDelay));
+
+    scheduleRender();
   };
 
+  currentTick = tick;
   setTimerTimeout(setTimeout(tick, 1000));
+}
+
+// Re-runs the current tick immediately (e.g. on visibilitychange), so the
+// display resyncs to wall-clock time without waiting up to a second.
+export function resyncTimer() {
+  if (!running || !currentTick) return;
+  if (timerTimeout) {
+    clearTimeout(timerTimeout);
+    setTimerTimeout(null);
+  }
+  void currentTick();
 }
 
 export function pauseTimer() {
@@ -34,6 +66,7 @@ export function pauseTimer() {
     clearTimeout(timerTimeout);
     setTimerTimeout(null);
   }
+  currentTick = null;
   void updateStatusLine();
   void updateDotsLine();
 }
