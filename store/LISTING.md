@@ -10,7 +10,7 @@ Copy-paste material for the portal, checked against the
 | Name | `Pomodoro` (must match `app.json` `name` and the on-glasses name) |
 | Tagline | Focus timer with work/break cycles for Even G2. |
 | Category | Productivity |
-| Search tags | pomodoro, focus, timer, productivity, study, breaks |
+| Search tags | pomodoro, focus, timer, productivity, study (the portal allows 5) |
 | Languages | English (`en`) |
 
 ### Description
@@ -46,7 +46,7 @@ A Pomodoro focus timer for your glasses: work sessions, short and long breaks, a
   ....####....
   ```
 
-- **Background image:** the portal also asks for a greyscale background image (color assets are rejected). Its size isn't documented; use the size the portal requests.
+- **Cover:** the portal builds it from a screenshot placed over a stock environment photo (Office is used here); no separate background image is uploaded.
 - **Screenshots:** `screenshots/*.png`, the raw 576x288 framebuffer from the simulator's screenshot API (the format the guidelines ask for):
   1. `1-work-running.png`: work session in progress
   2. `2-break-alert.png`: phase-end alert waiting for the user
