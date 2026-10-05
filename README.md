@@ -7,27 +7,27 @@ A Pomodoro technique timer for **Even Realities G2** smart glasses, built with t
 
 ## Features
 
-- **25-minute work sessions** with 5-minute short breaks and 15-minute long breaks
-- **Pixel art icons** — tomato for work, coffee cup for break
-- **Image-based progress bar** with rounded corners and fill animation
-- **Session dots** tracking completed cycles (4 cycles before long break)
-- **"Back to work!"** motivation message after each break (60 seconds)
-- **Menu navigation** with Up/Down/Click on the G2 touchbar
-- **Auto-advance** between work and break phases
+- **25-minute work sessions** with 5-minute short breaks and a 15-minute long break after every 4 sessions
+- **Pixel art icons**: tomato for work, coffee cup for breaks
+- **Text progress bar** (`━━━━────`) and **session dots** for the current set of 4
+- **Phase-end alert**: the glasses have no speaker or haptics, so the status line blinks and the timer waits for you to start the next phase
+- **Survives a locked phone and app restarts**: the timer runs on the wall clock and its state is saved on every change
+- **Phone companion page** in the Even app with the same controls
+- **Saves battery** by skipping display updates while the glasses are off your face
 
 ## Controls
 
 | Input | Action |
 |-------|--------|
-| **Up / Down** | Navigate menu (Start, Pause, Reset, Skip) |
-| **Click** | Execute selected action |
-| **Double Click** | Skip to next phase |
+| **Swipe up / down** | Move through the menu (Start / Pause, Skip, Reset) |
+| **Tap** | Run the selected item |
+| **Double tap** | Exit (system confirmation dialog) |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js v20+
+- Node.js 20 LTS or 22+
 - Even Realities G2 glasses (or the evenhub-simulator for development)
 
 ### Install
@@ -44,37 +44,39 @@ npm install
 # Start dev server
 npm run dev
 
-# Run simulator (in another terminal)
-npx evenhub-simulator http://localhost:5173
+# Run the simulator (in another terminal)
+npm run sim
 ```
+
+`npm run sim` calls the simulator directly because `npx evenhub-simulator` fails: npm drops its `.bin` link, since its platform packages declare the same command name.
 
 ### Build & Package
 
 ```bash
-npm run build
-npx evenhub pack app.json dist -o pomodoro.ehpk
+npm run pack   # builds and writes pomodoro.ehpk, stamping min_app_version from SDK 0.0.16
 ```
+
+Store listing text, icon, screenshots and the pre-submission checklist are in [`store/`](store/LISTING.md).
 
 ## Tech Stack
 
 - **TypeScript** + **Vite**
-- **@evenrealities/even_hub_sdk** — G2 display and event bridge
-- **@evenrealities/evenhub-simulator** — development preview
-- **Canvas API** — pixel art icons and progress bar rendering
+- **@evenrealities/even_hub_sdk** (0.0.16): G2 display and event bridge
+- **@evenrealities/evenhub-simulator**: development preview and screenshots
+- **Canvas API**: icons, thresholded to on/off pixels
 
 ## Display Layout
 
 ```
 [Tomato]  ▶  WORK · 1/4
-           22:28              [Start]
-                                Pause
-[===========-------]            Reset
-                                Skip
+          18:37             [Start / Pause]
+                              Skip
+━━━━━━────────────            Reset
 ● ○ ○ ○
 ```
 
-- **Left**: Icon (80x80 pixel art), status, timer, progress bar, session dots
-- **Right**: Menu with `[Name]` selection indicator
+- **Left**: icon (80x80), status, timer, progress bar, session dots
+- **Right**: native list menu; the firmware draws the selection highlight
 
 ## License
 

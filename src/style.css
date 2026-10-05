@@ -1,3 +1,28 @@
+/* Phone-side page. Colors follow the Even app design tokens; the glasses
+   green (#3CFA44) is reserved for the G2 display and never used here. */
+:root {
+  --color-text: #232323;
+  --color-text-dim: #7b7b7b;
+  --color-bg: #ffffff;
+  --color-surface: #eeeeee;
+  --color-track: rgba(35, 35, 35, 0.12);
+  --color-accent: #fef991;
+  /* The token sheet pairs the accent with white text, which is unreadable;
+     dark text keeps the primary button legible. */
+  --color-text-on-accent: #232323;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: #ffffff;
+    --color-text-dim: #8a8a8a;
+    --color-bg: #111111;
+    --color-surface: #1a1a1a;
+    --color-track: rgba(255, 255, 255, 0.12);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,16 +30,124 @@
 }
 
 body {
-  background: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'FK Grotesk Neue', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  letter-spacing: -0.01em;
   min-height: 100vh;
-  font-family: monospace;
 }
 
-#app {
+.companion {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+}
+
+.subtitle {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.caption {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.dim {
+  color: var(--color-text-dim);
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.timer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.time {
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.progress {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--color-text);
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+.dots {
+  font-size: 13px;
+  color: var(--color-text-dim);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+}
+
+.button {
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.button.primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: 600;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.help ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
 }

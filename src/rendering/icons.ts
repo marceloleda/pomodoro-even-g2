@@ -1,6 +1,7 @@
 import { createCanvas, canvasToBytes } from './canvas';
 
-const LEAF_ANGLES = [-1.2, -0.55, 0, 0.55, 1.2];
+const ON = '#fff';
+const OFF = '#000';
 
 // Cache icons since they never change
 const iconCache = new Map<string, number[]>();
@@ -17,141 +18,95 @@ export function getCoffeeIcon(size: number): number[] {
   return iconCache.get(key)!;
 }
 
+// Flat silhouettes: lit shapes separated by unlit gaps at least 3px wide, so
+// they survive thresholding to on/off pixels (see canvasToBytes).
 function drawTomatoIcon(size: number): number[] {
   const { canvas, ctx } = createCanvas(size, size);
   const centerX = size / 2;
-  const bodyY = size * 0.56;
-  const rx = size * 0.42;
-  const ry = size * 0.33;
-  const lineWidth = Math.max(2, size / 25);
+  const bodyY = size * 0.6;
+  const rx = size * 0.47;
+  const ry = size * 0.37;
+  const gap = Math.max(3, size / 20);
 
-  // Body: solid bright fill, dark outline
-  ctx.fillStyle = '#ddd';
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = lineWidth;
+  // Body
+  ctx.fillStyle = ON;
   ctx.beginPath();
   ctx.ellipse(centerX, bodyY, rx, ry, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Calyx: a five-pointed star over the top of the body, cut out of it by an unlit outline
+  const starY = bodyY - ry + size * 0.08;
+  const outer = size * 0.26;
+  const inner = outer * 0.42;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    ctx.lineTo(centerX + r * Math.cos(a), starY + r * Math.sin(a) * 0.7);
+  }
+  ctx.closePath();
+  ctx.lineWidth = gap * 2;
+  ctx.strokeStyle = OFF;
+  ctx.lineJoin = 'round';
   ctx.stroke();
-
-  // Calyx: 5 bold leaf petals
-  const leafBase = bodyY - ry + 3;
-  const leafLen = size * 0.2;
-  const leafW = size * 0.08;
-
-  // Fill
-  ctx.fillStyle = '#ccc';
-  for (const angle of LEAF_ANGLES) {
-    ctx.save();
-    ctx.translate(centerX, leafBase);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.moveTo(0, 2);
-    ctx.quadraticCurveTo(-leafW, -leafLen * 0.5, 0, -leafLen);
-    ctx.quadraticCurveTo(leafW, -leafLen * 0.5, 0, 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Outline
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1.5;
-  for (const angle of LEAF_ANGLES) {
-    ctx.save();
-    ctx.translate(centerX, leafBase);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    ctx.moveTo(0, 2);
-    ctx.quadraticCurveTo(-leafW, -leafLen * 0.5, 0, -leafLen);
-    ctx.quadraticCurveTo(leafW, -leafLen * 0.5, 0, 2);
-    ctx.stroke();
-    ctx.restore();
-  }
+  ctx.fillStyle = ON;
+  ctx.fill();
 
   // Stem
-  ctx.fillStyle = '#aaa';
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1.5;
-  const stemH = size * 0.1;
-  ctx.beginPath();
-  ctx.moveTo(centerX - 3, leafBase);
-  ctx.lineTo(centerX - 2, leafBase - stemH);
-  ctx.lineTo(centerX + 2, leafBase - stemH);
-  ctx.lineTo(centerX + 3, leafBase);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  const stemW = size * 0.09;
+  ctx.fillRect(centerX - stemW / 2, starY - outer * 0.95, stemW, outer * 0.8);
 
   return canvasToBytes(canvas);
 }
 
 function drawCoffeeIcon(size: number): number[] {
   const { canvas, ctx } = createCanvas(size, size);
-  const lineWidth = Math.max(2, size / 25);
+  const gap = Math.max(3, size / 20);
+  const stroke = Math.max(4, size / 16);
 
-  const cupL = size * 0.15;
-  const cupR = size * 0.65;
-  const cupTop = size * 0.38;
-  const cupBot = size * 0.78;
-  const taper = size * 0.03;
+  const cupL = size * 0.12;
+  const cupR = size * 0.66;
+  const cupTop = size * 0.4;
+  const cupBot = size * 0.8;
+  const taper = size * 0.05;
 
-  // Cup body (tapered)
-  ctx.fillStyle = '#ddd';
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = lineWidth;
+  // Saucer, drawn first so the cup can cut a gap into it
+  ctx.fillStyle = ON;
+  ctx.beginPath();
+  ctx.ellipse(size * 0.42, cupBot + size * 0.04, size * 0.4, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Handle
+  ctx.strokeStyle = ON;
+  ctx.lineWidth = stroke;
+  ctx.beginPath();
+  ctx.arc(cupR, (cupTop + cupBot) / 2, size * 0.11, -Math.PI / 2, Math.PI / 2);
+  ctx.stroke();
+
+  // Cup body (tapered), outlined in unlit pixels to separate it from the saucer
   ctx.beginPath();
   ctx.moveTo(cupL, cupTop);
   ctx.lineTo(cupL + taper, cupBot);
   ctx.lineTo(cupR - taper, cupBot);
   ctx.lineTo(cupR, cupTop);
   ctx.closePath();
+  ctx.lineWidth = gap * 2;
+  ctx.strokeStyle = OFF;
+  ctx.stroke();
+  ctx.fillStyle = ON;
   ctx.fill();
-  ctx.stroke();
-
-  // Rim
-  ctx.fillStyle = '#eee';
-  ctx.fillRect(cupL - 2, cupTop - 3, cupR - cupL + 4, 5);
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(cupL - 2, cupTop - 3, cupR - cupL + 4, 5);
-
-  // Handle
-  const handleX = cupR + 2;
-  const handleCy = (cupTop + cupBot) / 2;
-  const handleR = size * 0.1;
-  ctx.strokeStyle = '#ddd';
-  ctx.lineWidth = lineWidth * 1.5;
-  ctx.beginPath();
-  ctx.arc(handleX, handleCy, handleR, -Math.PI / 2, Math.PI / 2);
-  ctx.stroke();
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(handleX, handleCy, handleR + lineWidth * 0.5, -Math.PI / 2, Math.PI / 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(handleX, handleCy, handleR - lineWidth * 0.5, -Math.PI / 2, Math.PI / 2);
-  ctx.stroke();
-
-  // Saucer
-  ctx.fillStyle = '#bbb';
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.ellipse(size * 0.42, cupBot + 4, size * 0.38, size * 0.05, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
 
   // Steam
-  ctx.strokeStyle = '#aaa';
-  ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = ON;
+  ctx.lineWidth = stroke;
   ctx.lineCap = 'round';
   for (let i = 0; i < 3; i++) {
-    const sx = cupL + size * 0.1 + i * size * 0.13;
-    const steamH = size * 0.15 + i * 2;
+    const sx = cupL + size * 0.12 + i * size * 0.15;
+    const top = cupTop - size * 0.08;
+    const steamH = size * 0.22;
     ctx.beginPath();
-    ctx.moveTo(sx, cupTop - 6);
-    ctx.quadraticCurveTo(sx + 5, cupTop - 6 - steamH * 0.5, sx, cupTop - 6 - steamH);
+    ctx.moveTo(sx, top);
+    ctx.quadraticCurveTo(sx + size * 0.07, top - steamH * 0.5, sx, top - steamH);
     ctx.stroke();
   }
 

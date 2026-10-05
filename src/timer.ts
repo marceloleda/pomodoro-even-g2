@@ -1,120 +1,134 @@
-import { WORK_MINUTES, MOTIVATION_DISPLAY_SECONDS } from './config';
+import type { TimerState } from './types';
 import {
-  running, timeLeft, timerTimeout, timerGeneration, mode, cycle,
-  setRunning, setTimeLeft, setTimerTimeout, incrementGeneration,
-  setMode, setCycle, getBreakDuration, showTransientMessage, clearTransientMessage,
+  mode, cycle, running, remainingMs,
+  updateTimerState, isLongBreak, phaseDurationMs, msLeft,
 } from './state';
-import { updateTimerDisplay, updateAllText, updateStatusLine, sendIcon } from './glasses/display';
+import { saveTimerState } from './storage';
+import { updateTick, updateStatusLine, refreshAll, sendIcon, blinkStatus, cancelBlink } from './glasses/display';
 
+// Wake slightly after the second boundary so the countdown never shows the same second twice.
+const TICK_MARGIN_MS = 10;
+
+let tickTimeout: ReturnType<typeof setTimeout> | null = null;
 let renderInFlight = false;
-let currentTick: (() => void) | null = null;
 
 function scheduleRender() {
   if (renderInFlight) return;
   renderInFlight = true;
-  void updateTimerDisplay().finally(() => { renderInFlight = false; });
+  void updateTick().finally(() => { renderInFlight = false; });
 }
 
-function startTicking() {
-  setRunning(true);
-  const myGen = incrementGeneration();
-
-  const startedAt = Date.now();
-  const initialTimeLeft = timeLeft;
-
-  const tick = async () => {
-    if (!running || myGen !== timerGeneration) return;
-
-    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-    const newTimeLeft = Math.max(0, initialTimeLeft - elapsed);
-    setTimeLeft(newTimeLeft);
-
-    if (newTimeLeft <= 0) {
-      // Advance before any await, so a resync or user action landing while
-      // the glasses are still rendering can't end the same session twice.
-      stopTicking();
-      advancePhase();
-      startTicking();
-      await refreshPhaseDisplay();
-      return;
-    }
-
-    // Align next tick to the next wall-clock second, before the render,
-    // so Bluetooth latency and background throttling don't drift the clock.
-    const nextDelay = 1000 - ((Date.now() - startedAt) % 1000);
-    setTimerTimeout(setTimeout(tick, nextDelay));
-
-    scheduleRender();
-  };
-
-  currentTick = tick;
-  setTimerTimeout(setTimeout(tick, 1000));
-}
-
-function stopTicking() {
-  setRunning(false);
-  if (timerTimeout) {
-    clearTimeout(timerTimeout);
-    setTimerTimeout(null);
+function clearTick() {
+  if (tickTimeout) {
+    clearTimeout(tickTimeout);
+    tickTimeout = null;
   }
-  currentTick = null;
 }
 
-// Work -> break counts a completed session; break -> work shows the motivation message.
-function advancePhase() {
-  if (mode === 'work') {
-    setCycle(cycle + 1);
-    setMode('break');
-    setTimeLeft(getBreakDuration());
-    clearTransientMessage();
-  } else {
-    setMode('work');
-    setTimeLeft(WORK_MINUTES * 60);
-    showTransientMessage('▶  Back to work!', MOTIVATION_DISPLAY_SECONDS, () => {
-      void updateStatusLine();
-    });
+// The remaining time is always derived from the wall clock (endsAt), so a
+// throttled or suspended WebView catches up on the next tick instead of drifting.
+function scheduleTick() {
+  clearTick();
+  const left = msLeft();
+  if (left <= 0) {
+    finishPhase(true);
+    return;
   }
+  // Next wake-up is when the displayed second changes.
+  tickTimeout = setTimeout(onTick, (left % 1000 || 1000) + TICK_MARGIN_MS);
+}
+
+function onTick() {
+  tickTimeout = null;
+  if (!running) return;
+  scheduleTick();
+  if (running) scheduleRender();
+}
+
+// Work -> break counts a completed session.
+function nextPhase(): Pick<TimerState, 'mode' | 'cycle'> {
+  return mode === 'work' ? { mode: 'break', cycle: cycle + 1 } : { mode: 'work', cycle };
+}
+
+function enterPhase(next: Pick<TimerState, 'mode' | 'cycle'>, alertText: string) {
+  clearTick();
+  updateTimerState({
+    ...next,
+    running: false,
+    endsAt: 0,
+    remainingMs: phaseDurationMs(next.mode, next.cycle),
+    alert: alertText,
+  });
+  saveTimerState();
+}
+
+// The glasses can't beep, so instead of rolling into the next phase unnoticed
+// the timer stops and alerts until the user starts it.
+function finishPhase(blink: boolean) {
+  const next = nextPhase();
+  let alertText = 'Back to work!';
+  if (next.mode === 'break') alertText = isLongBreak(next.cycle) ? 'Long break time!' : 'Break time!';
+  enterPhase(next, alertText);
+  void refreshPhaseDisplay().then(() => { if (blink) blinkStatus(); });
 }
 
 async function refreshPhaseDisplay() {
-  await updateAllText();
+  await refreshAll();
   await sendIcon();
 }
 
 export function startTimer() {
   if (running) return;
-  startTicking();
+  updateTimerState({ running: true, endsAt: Date.now() + remainingMs, alert: '' });
+  saveTimerState();
+  scheduleTick();
   void updateStatusLine();
-}
-
-// Re-runs the current tick immediately (e.g. on visibilitychange), so the
-// display resyncs to wall-clock time without waiting up to a second.
-export function resyncTimer() {
-  if (!running || !currentTick) return;
-  if (timerTimeout) {
-    clearTimeout(timerTimeout);
-    setTimerTimeout(null);
-  }
-  void currentTick();
 }
 
 export function pauseTimer() {
   if (!running) return;
-  stopTicking();
+  clearTick();
+  updateTimerState({ running: false, remainingMs: msLeft(), endsAt: 0 });
+  saveTimerState();
   void updateStatusLine();
 }
 
-export async function resetTimer() {
-  stopTicking();
-  clearTransientMessage();
-  setMode('work');
-  setCycle(0);
-  setTimeLeft(WORK_MINUTES * 60);
-  await refreshPhaseDisplay();
+export function toggleTimer() {
+  if (running) pauseTimer();
+  else startTimer();
 }
 
 export async function skipToNext() {
-  stopTicking();
-  advancePhase();
+  enterPhase(nextPhase(), '');
   await refreshPhaseDisplay();
+}
+
+export async function resetTimer() {
+  enterPhase({ mode: 'work', cycle: 0 }, '');
+  await refreshPhaseDisplay();
+}
+
+// Re-reads the wall clock right away (e.g. on visibilitychange or when the
+// glasses app returns to the foreground) instead of waiting for the next tick.
+export function resyncTimer() {
+  if (!running) return;
+  scheduleTick();
+  if (running) scheduleRender();
+}
+
+// Applies a saved state on launch. A phase that ended while the app was closed
+// shows its alert; one still running picks up where the wall clock says it is.
+export function restoreTimer(saved: TimerState) {
+  const duration = phaseDurationMs(saved.mode, saved.cycle);
+  updateTimerState({
+    ...saved,
+    remainingMs: Math.min(saved.remainingMs, duration),
+    endsAt: saved.running ? Math.min(saved.endsAt, Date.now() + duration) : 0,
+  });
+  if (running) scheduleTick();
+}
+
+export function stopTimer() {
+  clearTick();
+  cancelBlink();
 }

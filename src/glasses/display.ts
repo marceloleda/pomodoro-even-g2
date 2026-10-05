@@ -6,149 +6,155 @@ import {
   ImageRawDataUpdateResult,
   StartUpPageCreateResult,
 } from '@evenrealities/even_hub_sdk';
-import { ICON_SIZE } from '../config';
+import { ICON_SIZE, TEXT_BRIGHT, TEXT_OFF, ALERT_BLINKS, ALERT_BLINK_MS } from '../config';
 import {
-  bridge, mode, timeLeft, isPageCreated, setPageCreated,
-  formatTime, buildStatusLine, buildSessionDots, buildMenuText, getTotalTime,
+  bridge, mode, alert, isPageCreated, setPageCreated,
+  formatTime, secondsLeft, buildStatusLine, buildSessionDots, buildProgressBar,
 } from '../state';
-import { buildContainers, STATUS_ID, TIMER_ID, PBAR_IMG_ID, DOTS_ID, MENU_ID, ICON_ID } from './containers';
+import { buildContainers, STATUS_ID, TIMER_ID, PROGRESS_ID, DOTS_ID, ICON_ID } from './containers';
+import { enqueue } from './queue';
+import type { PomodoroMode } from '../types';
 import { getTomatoIcon, getCoffeeIcon } from '../rendering/icons';
-import { drawProgressBar, progressFillWidth } from '../rendering/progress-bar';
 
-// The SDK forbids concurrent image transfers, so every updateImageRawData
-// call is chained behind the previous one.
-let imageQueue: Promise<void> = Promise.resolve();
-// Fill width last sent to the glasses; -1 forces the next send.
-let lastProgressFill = -1;
+const CONTAINER_NAMES: Record<number, string> = {
+  [STATUS_ID]: 'status', [TIMER_ID]: 'timer', [PROGRESS_ID]: 'progress', [DOTS_ID]: 'dots',
+};
 
-function sendImage(containerID: number, containerName: string, imageData: number[]): Promise<void> {
-  const send = imageQueue.then(async () => {
-    if (!bridge) return;
-    const result = await bridge.updateImageRawData(new ImageRawDataUpdate({
-      containerID, containerName, imageData,
-    }));
-    if (result !== ImageRawDataUpdateResult.success) {
-      console.warn(`[pomodoro] updateImageRawData(${containerName}) returned ${result}`);
-    }
-  });
-  imageQueue = send.catch(() => {});
-  return send;
+// Last content sent, so unchanged frames are skipped; reset whenever the page is redrawn.
+let lastProgress = '';
+let lastIconMode: PomodoroMode | null = null;
+// True while the glasses are off the user's face: nobody sees the display, so skip writes.
+let suspended = false;
+let blinkTimer: ReturnType<typeof setTimeout> | null = null;
+
+function canDraw(): boolean {
+  return !!bridge && isPageCreated && !suspended;
+}
+
+async function writeText(containerID: number, content: string, textColor?: number): Promise<void> {
+  const b = bridge;
+  if (!b || !canDraw()) return;
+  const containerName = CONTAINER_NAMES[containerID];
+  try {
+    const ok = await enqueue(`textContainerUpgrade(${containerName})`, () =>
+      b.textContainerUpgrade(new TextContainerUpgrade({ containerID, containerName, content, textColor })));
+    if (!ok) console.warn(`[pomodoro] textContainerUpgrade(${containerName}) returned false`);
+  } catch (err) {
+    console.error(`[pomodoro] textContainerUpgrade(${containerName}) failed:`, err);
+  }
 }
 
 export async function renderPage(): Promise<void> {
-  if (!bridge) return;
-  const { iconImg, statusText, timerText, progressImg, dotsText, menuText } = buildContainers();
-  const config = {
+  const b = bridge;
+  if (!b) return;
+  const { iconImg, statusText, timerText, progressText, dotsText, menuList } = buildContainers();
+  const page = {
     containerTotalNum: 6,
-    imageObject: [iconImg, progressImg],
-    textObject: [statusText, timerText, dotsText, menuText],
+    imageObject: [iconImg],
+    textObject: [statusText, timerText, progressText, dotsText],
+    listObject: [menuList],
   };
   try {
-    if (!isPageCreated) {
-      const result = await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config));
-      if (result !== StartUpPageCreateResult.success) {
-        console.error('[pomodoro] createStartUpPageContainer returned', result);
+    const result = await enqueue('createStartUpPageContainer', () =>
+      b.createStartUpPageContainer(new CreateStartUpPageContainer(page)));
+    if (result !== StartUpPageCreateResult.success) {
+      // The startup page can only be created once per glasses session. After a
+      // WebView reload it already exists, so redraw it in place instead.
+      const rebuilt = await enqueue('rebuildPageContainer', () =>
+        b.rebuildPageContainer(new RebuildPageContainer(page)));
+      if (!rebuilt) {
+        console.error('[pomodoro] createStartUpPageContainer returned', result, 'and rebuildPageContainer failed');
         return;
       }
-      setPageCreated(true);
-    } else if (!await bridge.rebuildPageContainer(new RebuildPageContainer(config))) {
-      console.warn('[pomodoro] rebuildPageContainer returned false');
     }
-    // Image containers start empty after a create/rebuild.
+    setPageCreated(true);
+    lastProgress = progressText.content ?? '';
+    lastIconMode = null;
+    // Image containers start empty after the page is created.
     await sendIcon();
-    await sendProgressBar(true);
   } catch (err) {
     console.error('[pomodoro] renderPage failed:', err);
   }
 }
 
 export async function sendIcon(): Promise<void> {
-  if (!bridge) return;
+  const b = bridge;
+  if (!b || !canDraw() || lastIconMode === mode) return;
+  const iconMode = mode;
+  lastIconMode = iconMode;
   try {
-    const bytes = mode === 'work' ? getTomatoIcon(ICON_SIZE) : getCoffeeIcon(ICON_SIZE);
-    await sendImage(ICON_ID, 'icon', bytes);
+    const imageData = iconMode === 'work' ? getTomatoIcon(ICON_SIZE) : getCoffeeIcon(ICON_SIZE);
+    const result = await enqueue('updateImageRawData(icon)', () =>
+      b.updateImageRawData(new ImageRawDataUpdate({ containerID: ICON_ID, containerName: 'icon', imageData })));
+    if (result !== ImageRawDataUpdateResult.success) {
+      lastIconMode = null;
+      console.warn('[pomodoro] updateImageRawData(icon) returned', result);
+    }
   } catch (err) {
+    lastIconMode = null;
     console.error('[pomodoro] sendIcon failed:', err);
   }
 }
 
-// Skips the transfer when the visible fill hasn't changed: the SDK warns
-// against sending images too often, and the bar moves ~every 5s in work mode.
-export async function sendProgressBar(force = false): Promise<void> {
-  if (!bridge) return;
-  const fillW = progressFillWidth(timeLeft, getTotalTime());
-  if (!force && fillW === lastProgressFill) return;
-  lastProgressFill = fillW;
-  try {
-    await sendImage(PBAR_IMG_ID, 'pbar', drawProgressBar(fillW));
-  } catch (err) {
-    lastProgressFill = -1;
-    console.error('[pomodoro] sendProgressBar failed:', err);
-  }
-}
-
-export async function updateTimerDisplay(): Promise<void> {
-  if (!bridge) return;
-  try {
-    await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: TIMER_ID, containerName: 'timer',
-      contentOffset: 0, contentLength: 5, content: formatTime(timeLeft),
-    }));
-    await sendProgressBar();
-  } catch (err) {
-    console.error('[pomodoro] updateTimerDisplay failed:', err);
+// Called every second while running: the countdown always changes, the bar
+// only every PROGRESS_SEGMENTS-th of the phase.
+export async function updateTick(): Promise<void> {
+  await writeText(TIMER_ID, formatTime(secondsLeft()));
+  const progress = buildProgressBar();
+  if (progress !== lastProgress && canDraw()) {
+    lastProgress = progress;
+    await writeText(PROGRESS_ID, progress);
   }
 }
 
 export async function updateStatusLine(): Promise<void> {
-  if (!bridge) return;
-  try {
-    const status = buildStatusLine();
-    await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: STATUS_ID, containerName: 'status',
-      contentOffset: 0, contentLength: status.length, content: status,
-    }));
-  } catch (err) {
-    console.error('[pomodoro] updateStatusLine failed:', err);
+  cancelBlink();
+  await writeText(STATUS_ID, buildStatusLine(), TEXT_BRIGHT);
+}
+
+export async function refreshAll(): Promise<void> {
+  if (!canDraw()) return;
+  cancelBlink();
+  lastProgress = buildProgressBar();
+  await writeText(STATUS_ID, buildStatusLine(), TEXT_BRIGHT);
+  await writeText(TIMER_ID, formatTime(secondsLeft()));
+  await writeText(PROGRESS_ID, lastProgress);
+  await writeText(DOTS_ID, buildSessionDots());
+}
+
+// The glasses have no speaker or haptics: blinking the status line is the
+// only way to flag a phase change. Ends on full brightness.
+export function blinkStatus() {
+  cancelBlink();
+  let step = 0;
+  const next = () => {
+    blinkTimer = null;
+    if (step >= ALERT_BLINKS * 2) return;
+    const level = step % 2 === 0 ? TEXT_OFF : TEXT_BRIGHT;
+    step++;
+    void writeText(STATUS_ID, buildStatusLine(), level);
+    blinkTimer = setTimeout(next, ALERT_BLINK_MS);
+  };
+  next();
+}
+
+export function cancelBlink() {
+  if (blinkTimer) {
+    clearTimeout(blinkTimer);
+    blinkTimer = null;
   }
 }
 
-export async function updateMenuDisplay(): Promise<void> {
-  if (!bridge) return;
-  try {
-    const menu = buildMenuText();
-    await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: MENU_ID, containerName: 'menu',
-      contentOffset: 0, contentLength: menu.length, content: menu,
-    }));
-  } catch (err) {
-    console.error('[pomodoro] updateMenuDisplay failed, rebuilding page:', err);
-    await renderPage();
+// Driven by the wearing sensor. Taking the glasses off stops display writes
+// (the timer keeps running); putting them back on redraws the current state.
+export async function setDisplaySuspended(value: boolean): Promise<void> {
+  if (suspended === value) return;
+  suspended = value;
+  if (value) {
+    cancelBlink();
+    return;
   }
-}
-
-export async function updateAllText(): Promise<void> {
-  if (!bridge) return;
-  try {
-    const status = buildStatusLine();
-    const dots = buildSessionDots();
-
-    await Promise.all([
-      bridge.textContainerUpgrade(new TextContainerUpgrade({
-        containerID: STATUS_ID, containerName: 'status',
-        contentOffset: 0, contentLength: status.length, content: status,
-      })),
-      bridge.textContainerUpgrade(new TextContainerUpgrade({
-        containerID: TIMER_ID, containerName: 'timer',
-        contentOffset: 0, contentLength: 5, content: formatTime(timeLeft),
-      })),
-      bridge.textContainerUpgrade(new TextContainerUpgrade({
-        containerID: DOTS_ID, containerName: 'dots',
-        contentOffset: 0, contentLength: dots.length, content: dots,
-      })),
-    ]);
-    await sendProgressBar();
-  } catch (err) {
-    console.error('[pomodoro] updateAllText failed:', err);
-  }
+  await refreshAll();
+  await sendIcon();
+  if (alert) blinkStatus();
 }
