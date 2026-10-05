@@ -3,6 +3,7 @@ import {
   RebuildPageContainer,
   TextContainerUpgrade,
   ImageRawDataUpdate,
+  ImageRawDataUpdateResult,
   StartUpPageCreateResult,
 } from '@evenrealities/even_hub_sdk';
 import { ICON_SIZE } from '../config';
@@ -12,7 +13,27 @@ import {
 } from '../state';
 import { buildContainers, STATUS_ID, TIMER_ID, PBAR_IMG_ID, DOTS_ID, MENU_ID, ICON_ID } from './containers';
 import { getTomatoIcon, getCoffeeIcon } from '../rendering/icons';
-import { drawProgressBar } from '../rendering/progress-bar';
+import { drawProgressBar, progressFillWidth } from '../rendering/progress-bar';
+
+// The SDK forbids concurrent image transfers, so every updateImageRawData
+// call is chained behind the previous one.
+let imageQueue: Promise<void> = Promise.resolve();
+// Fill width last sent to the glasses; -1 forces the next send.
+let lastProgressFill = -1;
+
+function sendImage(containerID: number, containerName: string, imageData: number[]): Promise<void> {
+  const send = imageQueue.then(async () => {
+    if (!bridge) return;
+    const result = await bridge.updateImageRawData(new ImageRawDataUpdate({
+      containerID, containerName, imageData,
+    }));
+    if (result !== ImageRawDataUpdateResult.success) {
+      console.warn(`[pomodoro] updateImageRawData(${containerName}) returned ${result}`);
+    }
+  });
+  imageQueue = send.catch(() => {});
+  return send;
+}
 
 export async function renderPage(): Promise<void> {
   if (!bridge) return;
@@ -25,16 +46,17 @@ export async function renderPage(): Promise<void> {
   try {
     if (!isPageCreated) {
       const result = await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config));
-      if (result === StartUpPageCreateResult.success) {
-        setPageCreated(true);
-        await sendIcon();
-        await sendProgressBar();
+      if (result !== StartUpPageCreateResult.success) {
+        console.error('[pomodoro] createStartUpPageContainer returned', result);
+        return;
       }
-    } else {
-      await bridge.rebuildPageContainer(new RebuildPageContainer(config));
-      await sendIcon();
-      await sendProgressBar();
+      setPageCreated(true);
+    } else if (!await bridge.rebuildPageContainer(new RebuildPageContainer(config))) {
+      console.warn('[pomodoro] rebuildPageContainer returned false');
     }
+    // Image containers start empty after a create/rebuild.
+    await sendIcon();
+    await sendProgressBar(true);
   } catch (err) {
     console.error('[pomodoro] renderPage failed:', err);
   }
@@ -44,22 +66,23 @@ export async function sendIcon(): Promise<void> {
   if (!bridge) return;
   try {
     const bytes = mode === 'work' ? getTomatoIcon(ICON_SIZE) : getCoffeeIcon(ICON_SIZE);
-    await bridge.updateImageRawData(new ImageRawDataUpdate({
-      containerID: ICON_ID, containerName: 'icon', imageData: bytes,
-    }));
+    await sendImage(ICON_ID, 'icon', bytes);
   } catch (err) {
     console.error('[pomodoro] sendIcon failed:', err);
   }
 }
 
-export async function sendProgressBar(): Promise<void> {
+// Skips the transfer when the visible fill hasn't changed: the SDK warns
+// against sending images too often, and the bar moves ~every 5s in work mode.
+export async function sendProgressBar(force = false): Promise<void> {
   if (!bridge) return;
+  const fillW = progressFillWidth(timeLeft, getTotalTime());
+  if (!force && fillW === lastProgressFill) return;
+  lastProgressFill = fillW;
   try {
-    const bytes = drawProgressBar(timeLeft, getTotalTime());
-    await bridge.updateImageRawData(new ImageRawDataUpdate({
-      containerID: PBAR_IMG_ID, containerName: 'pbar', imageData: bytes,
-    }));
+    await sendImage(PBAR_IMG_ID, 'pbar', drawProgressBar(fillW));
   } catch (err) {
+    lastProgressFill = -1;
     console.error('[pomodoro] sendProgressBar failed:', err);
   }
 }
@@ -90,19 +113,6 @@ export async function updateStatusLine(): Promise<void> {
   }
 }
 
-export async function updateDotsLine(): Promise<void> {
-  if (!bridge) return;
-  try {
-    const dots = buildSessionDots();
-    await bridge.textContainerUpgrade(new TextContainerUpgrade({
-      containerID: DOTS_ID, containerName: 'dots',
-      contentOffset: 0, contentLength: dots.length, content: dots,
-    }));
-  } catch (err) {
-    console.error('[pomodoro] updateDotsLine failed:', err);
-  }
-}
-
 export async function updateMenuDisplay(): Promise<void> {
   if (!bridge) return;
   try {
@@ -112,6 +122,7 @@ export async function updateMenuDisplay(): Promise<void> {
       contentOffset: 0, contentLength: menu.length, content: menu,
     }));
   } catch (err) {
+    console.error('[pomodoro] updateMenuDisplay failed, rebuilding page:', err);
     await renderPage();
   }
 }

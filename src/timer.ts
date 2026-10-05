@@ -2,9 +2,9 @@ import { WORK_MINUTES, MOTIVATION_DISPLAY_SECONDS } from './config';
 import {
   running, timeLeft, timerTimeout, timerGeneration, mode, cycle,
   setRunning, setTimeLeft, setTimerTimeout, incrementGeneration,
-  setMode, setCycle, getBreakDuration, showTransientMessage,
+  setMode, setCycle, getBreakDuration, showTransientMessage, clearTransientMessage,
 } from './state';
-import { updateTimerDisplay, updateAllText, updateStatusLine, updateDotsLine, sendIcon } from './glasses/display';
+import { updateTimerDisplay, updateAllText, updateStatusLine, sendIcon } from './glasses/display';
 
 let renderInFlight = false;
 let currentTick: (() => void) | null = null;
@@ -15,11 +15,9 @@ function scheduleRender() {
   void updateTimerDisplay().finally(() => { renderInFlight = false; });
 }
 
-export function startTimer() {
-  if (running) return;
+function startTicking() {
   setRunning(true);
   const myGen = incrementGeneration();
-  void updateStatusLine();
 
   const startedAt = Date.now();
   const initialTimeLeft = timeLeft;
@@ -32,8 +30,12 @@ export function startTimer() {
     setTimeLeft(newTimeLeft);
 
     if (newTimeLeft <= 0) {
-      await updateTimerDisplay();
-      await handleTimerEnd();
+      // Advance before any await, so a resync or user action landing while
+      // the glasses are still rendering can't end the same session twice.
+      stopTicking();
+      advancePhase();
+      startTicking();
+      await refreshPhaseDisplay();
       return;
     }
 
@@ -49,6 +51,42 @@ export function startTimer() {
   setTimerTimeout(setTimeout(tick, 1000));
 }
 
+function stopTicking() {
+  setRunning(false);
+  if (timerTimeout) {
+    clearTimeout(timerTimeout);
+    setTimerTimeout(null);
+  }
+  currentTick = null;
+}
+
+// Work -> break counts a completed session; break -> work shows the motivation message.
+function advancePhase() {
+  if (mode === 'work') {
+    setCycle(cycle + 1);
+    setMode('break');
+    setTimeLeft(getBreakDuration());
+    clearTransientMessage();
+  } else {
+    setMode('work');
+    setTimeLeft(WORK_MINUTES * 60);
+    showTransientMessage('▶  Back to work!', MOTIVATION_DISPLAY_SECONDS, () => {
+      void updateStatusLine();
+    });
+  }
+}
+
+async function refreshPhaseDisplay() {
+  await updateAllText();
+  await sendIcon();
+}
+
+export function startTimer() {
+  if (running) return;
+  startTicking();
+  void updateStatusLine();
+}
+
 // Re-runs the current tick immediately (e.g. on visibilitychange), so the
 // display resyncs to wall-clock time without waiting up to a second.
 export function resyncTimer() {
@@ -61,47 +99,22 @@ export function resyncTimer() {
 }
 
 export function pauseTimer() {
-  setRunning(false);
-  if (timerTimeout) {
-    clearTimeout(timerTimeout);
-    setTimerTimeout(null);
-  }
-  currentTick = null;
+  if (!running) return;
+  stopTicking();
   void updateStatusLine();
-  void updateDotsLine();
 }
 
 export async function resetTimer() {
-  pauseTimer();
+  stopTicking();
+  clearTransientMessage();
   setMode('work');
   setCycle(0);
   setTimeLeft(WORK_MINUTES * 60);
-  await updateAllText();
-  await sendIcon();
+  await refreshPhaseDisplay();
 }
 
 export async function skipToNext() {
-  pauseTimer();
-  const wasBreak = mode === 'break';
-  if (mode === 'work') {
-    setCycle(cycle + 1);
-    setMode('break');
-    setTimeLeft(getBreakDuration());
-  } else {
-    setMode('work');
-    setTimeLeft(WORK_MINUTES * 60);
-  }
-  if (wasBreak && cycle > 0) {
-    showTransientMessage('\u25B6  Back to work!', MOTIVATION_DISPLAY_SECONDS, () => {
-      void updateStatusLine();
-    });
-  }
-  await updateAllText();
-  await sendIcon();
-}
-
-async function handleTimerEnd() {
-  pauseTimer();
-  await skipToNext();
-  startTimer();
+  stopTicking();
+  advancePhase();
+  await refreshPhaseDisplay();
 }

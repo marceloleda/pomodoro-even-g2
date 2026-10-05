@@ -1,10 +1,17 @@
 import { createCanvas, canvasToBytes } from './canvas';
 import { PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT, PROGRESS_BAR_RADIUS } from '../config';
 
-export function drawProgressBar(remaining: number, total: number): number[] {
-  const { canvas, ctx } = createCanvas(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+const FILL_MAX_WIDTH = PROGRESS_BAR_WIDTH - 6;
+
+// Width in pixels of the filled part of the bar.
+export function progressFillWidth(remaining: number, total: number): number {
   const safeTotal = Math.max(1, total);
   const pct = Math.min(1, (safeTotal - remaining) / safeTotal);
+  return Math.round(pct * FILL_MAX_WIDTH);
+}
+
+export function drawProgressBar(fillW: number): number[] {
+  const { canvas, ctx } = createCanvas(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
 
   // Outline (always visible on G2 transparent display)
   ctx.strokeStyle = '#aaa';
@@ -14,7 +21,6 @@ export function drawProgressBar(remaining: number, total: number): number[] {
   ctx.stroke();
 
   // Fill
-  const fillW = Math.round(pct * (PROGRESS_BAR_WIDTH - 6));
   if (fillW > 0) {
     ctx.fillStyle = '#ddd';
     ctx.beginPath();

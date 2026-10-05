@@ -52,7 +52,7 @@ npx evenhub-simulator http://localhost:5173
 
 ```bash
 npm run build
-npx evenhub pack
+npx evenhub pack app.json dist -o pomodoro.ehpk
 ```
 
 ## Tech Stack
@@ -66,7 +66,7 @@ npx evenhub pack
 
 ```
 [Tomato]  ▶  WORK · 1/4
-           22:28              [ Start ]
+           22:28              [Start]
                                 Pause
 [===========-------]            Reset
                                 Skip
@@ -74,7 +74,7 @@ npx evenhub pack
 ```
 
 - **Left**: Icon (80x80 pixel art), status, timer, progress bar, session dots
-- **Right**: Menu with `[ ]` selection indicator
+- **Right**: Menu with `[Name]` selection indicator
 
 ## License
 

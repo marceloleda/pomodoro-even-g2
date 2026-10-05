@@ -1,5 +1,5 @@
-import { DISPLAY_WIDTH, DISPLAY_HEIGHT, CYCLES_BEFORE_LONG_BREAK, WEB_PREVIEW_POLL_MS } from '../config';
-import { formatTime, timeLeft, getModeLabel, cycle, buildSessionDots, getTotalTime } from '../state';
+import { DISPLAY_WIDTH, DISPLAY_HEIGHT, WEB_PREVIEW_POLL_MS } from '../config';
+import { formatTime, timeLeft, buildStatusLine, buildSessionDots, getTotalTime } from '../state';
 import { startTimer, pauseTimer, resetTimer, skipToNext } from '../timer';
 
 export function isEvenAppEnvironment(): boolean {
@@ -49,7 +49,7 @@ export function renderWebPreview() {
     const dotsEl = document.getElementById('web-dots');
 
     if (timerEl) timerEl.textContent = formatTime(timeLeft);
-    if (statusEl) statusEl.textContent = `${getModeLabel()} \u00B7 Cycle ${cycle}/${CYCLES_BEFORE_LONG_BREAK}`;
+    if (statusEl) statusEl.textContent = buildStatusLine().trimEnd();
     if (fillEl) {
       const total = getTotalTime();
       const pct = Math.min(100, ((total - timeLeft) / Math.max(1, total)) * 100);

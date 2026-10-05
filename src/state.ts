@@ -13,7 +13,8 @@ export let cycle = 0;
 export let timerTimeout: ReturnType<typeof setTimeout> | null = null;
 export let timerGeneration = 0;
 export let isPageCreated = false;
-export let bridge: EvenAppBridge;
+// Stays null in web preview mode, where there are no glasses to talk to.
+export let bridge: EvenAppBridge | null = null;
 export let transientMessage = '';
 export let transientTimeout: ReturnType<typeof setTimeout> | null = null;
 export let selectedIndex = 0;
@@ -27,8 +28,6 @@ export function setTimerTimeout(t: ReturnType<typeof setTimeout> | null) { timer
 export function incrementGeneration() { timerGeneration++; return timerGeneration; }
 export function setPageCreated(v: boolean) { isPageCreated = v; }
 export function setBridge(b: EvenAppBridge) { bridge = b; }
-export function setTransientMessage(msg: string) { transientMessage = msg; }
-export function setTransientTimeout(t: ReturnType<typeof setTimeout> | null) { transientTimeout = t; }
 export function setSelectedIndex(i: number) { selectedIndex = i; }
 
 // --- Derived state ---
@@ -40,6 +39,13 @@ export function isLongBreak(): boolean {
 export function getModeLabel(): string {
   if (mode === 'work') return 'WORK';
   return isLongBreak() ? 'LONG BREAK' : 'SHORT BREAK';
+}
+
+// Work sessions completed in the current set. `cycle` keeps counting across sets,
+// so the long break shows the full set and the next work session starts a new one.
+export function completedInSet(): number {
+  if (mode === 'break' && isLongBreak()) return CYCLES_BEFORE_LONG_BREAK;
+  return cycle % CYCLES_BEFORE_LONG_BREAK;
 }
 
 export function getBreakDuration(): number {
@@ -58,15 +64,16 @@ export function formatTime(seconds: number): string {
 }
 
 export function buildSessionDots(): string {
+  const completed = completedInSet();
   return Array.from({ length: CYCLES_BEFORE_LONG_BREAK }, (_, i) =>
-    i < cycle ? '\u25CF' : '\u25CB'
+    i < completed ? '\u25CF' : '\u25CB'
   ).join(' ');
 }
 
 export function buildStatusLine(): string {
   if (transientMessage) return transientMessage.padEnd(STATUS_PAD_LENGTH);
   const icon = running ? '\u25B6' : '| |';
-  return `${icon}  ${getModeLabel()} \u00B7 ${cycle}/${CYCLES_BEFORE_LONG_BREAK}`.padEnd(STATUS_PAD_LENGTH);
+  return `${icon}  ${getModeLabel()} \u00B7 ${completedInSet()}/${CYCLES_BEFORE_LONG_BREAK}`.padEnd(STATUS_PAD_LENGTH);
 }
 
 export function buildMenuText(): string {
@@ -80,6 +87,15 @@ export function showTransientMessage(msg: string, durationSec: number, onExpire:
   if (transientTimeout) clearTimeout(transientTimeout);
   transientTimeout = setTimeout(() => {
     transientMessage = '';
+    transientTimeout = null;
     onExpire();
   }, durationSec * 1000);
+}
+
+export function clearTransientMessage() {
+  transientMessage = '';
+  if (transientTimeout) {
+    clearTimeout(transientTimeout);
+    transientTimeout = null;
+  }
 }
