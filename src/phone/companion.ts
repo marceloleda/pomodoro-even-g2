@@ -47,8 +47,23 @@ export function renderCompanion(glassesConnected: boolean) {
   document.getElementById('c-skip')?.addEventListener('click', () => void skipToNext());
   document.getElementById('c-reset')?.addEventListener('click', () => void resetTimer());
 
-  update();
-  setInterval(update, PHONE_POLL_MS);
+  syncPolling();
+  document.addEventListener('visibilitychange', syncPolling);
+}
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+// Nobody sees the page while the phone is locked or the Even app is in the
+// background, so polling stops there and catches up as soon as it is visible.
+function syncPolling() {
+  const visible = document.visibilityState === 'visible';
+  if (visible && !pollTimer) {
+    update();
+    pollTimer = setInterval(update, PHONE_POLL_MS);
+  } else if (!visible && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 function setText(id: string, text: string) {

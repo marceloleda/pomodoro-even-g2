@@ -20,6 +20,10 @@ export const TEXT_OFF = 0;
 // Glasses menu, a native list: the index of each label is what a click reports
 export const MENU_ITEMS = ['Start / Pause', 'Skip', 'Reset'] as const;
 
+// The firmware can repeat a tap 50-100ms later. Two real taps that close
+// together arrive as one double tap, so a repeat inside this window is a duplicate.
+export const REPEATED_TAP_MS = 450;
+
 // Phase-end alert: the glasses have no speaker or haptics, so the status line blinks
 export const ALERT_BLINKS = 3;
 export const ALERT_BLINK_MS = 500;

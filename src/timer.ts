@@ -4,7 +4,9 @@ import {
   updateTimerState, isLongBreak, phaseDurationMs, msLeft,
 } from './state';
 import { saveTimerState } from './storage';
-import { updateTick, updateStatusLine, refreshAll, sendIcon, blinkStatus, cancelBlink } from './glasses/display';
+import {
+  updateTick, updateStatusLine, refreshAll, redrawPage, sendIcon, blinkStatus, cancelBlink,
+} from './glasses/display';
 
 // Wake slightly after the second boundary so the countdown never shows the same second twice.
 const TICK_MARGIN_MS = 10;
@@ -98,14 +100,15 @@ export function toggleTimer() {
   else startTimer();
 }
 
+// Skip and Reset redraw with a rebuild so the menu selection returns to Start / Pause.
 export async function skipToNext() {
   enterPhase(nextPhase(), '');
-  await refreshPhaseDisplay();
+  await redrawPage();
 }
 
 export async function resetTimer() {
   enterPhase({ mode: 'work', cycle: 0 }, '');
-  await refreshPhaseDisplay();
+  await redrawPage();
 }
 
 // Re-reads the wall clock right away (e.g. on visibilitychange or when the

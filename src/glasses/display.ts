@@ -23,6 +23,15 @@ const CONTAINER_NAMES: Record<number, string> = {
 // Last content sent, so unchanged frames are skipped; reset whenever the page is redrawn.
 let lastProgress = '';
 let lastIconMode: PomodoroMode | null = null;
+// Icon actually on screen; a create or rebuild leaves the image container empty.
+let shownIcon: PomodoroMode | null = null;
+// The image channel can stay wedged for the rest of the session (reported after
+// the exit dialog is dismissed), so icon sends stop after this many failures in a row.
+const MAX_ICON_FAILURES = 2;
+let iconFailures = 0;
+// createStartUpPageContainer works once per glasses session, and a second call
+// blocks for ~2s before returning invalid, so it is only ever tried once.
+let startupCalled = false;
 // True while the glasses are off the user's face: nobody sees the display, so skip writes.
 let suspended = false;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
@@ -44,9 +53,11 @@ async function writeText(containerID: number, content: string, textColor?: numbe
   }
 }
 
+// Draws the whole page: the startup page the first time, a rebuild after that.
 export async function renderPage(): Promise<void> {
   const b = bridge;
   if (!b) return;
+  cancelBlink();
   const { iconImg, statusText, timerText, progressText, dotsText, menuList } = buildContainers();
   const page = {
     containerTotalNum: 6,
@@ -55,45 +66,71 @@ export async function renderPage(): Promise<void> {
     listObject: [menuList],
   };
   try {
-    const result = await enqueue('createStartUpPageContainer', () =>
-      b.createStartUpPageContainer(new CreateStartUpPageContainer(page)));
-    if (result !== StartUpPageCreateResult.success) {
-      // The startup page can only be created once per glasses session. After a
-      // WebView reload it already exists, so redraw it in place instead.
+    let created = false;
+    if (!startupCalled) {
+      startupCalled = true;
+      const result = await enqueue('createStartUpPageContainer', () =>
+        b.createStartUpPageContainer(new CreateStartUpPageContainer(page)));
+      created = result === StartUpPageCreateResult.success;
+      // After a WebView reload the startup page already exists and this returns invalid.
+      if (!created) console.warn('[pomodoro] createStartUpPageContainer returned', result, '- rebuilding instead');
+    }
+    if (!created) {
       const rebuilt = await enqueue('rebuildPageContainer', () =>
         b.rebuildPageContainer(new RebuildPageContainer(page)));
       if (!rebuilt) {
-        console.error('[pomodoro] createStartUpPageContainer returned', result, 'and rebuildPageContainer failed');
+        console.error('[pomodoro] rebuildPageContainer failed');
         return;
       }
     }
     setPageCreated(true);
     lastProgress = progressText.content ?? '';
+    // Image containers start empty after the page is created or rebuilt.
     lastIconMode = null;
-    // Image containers start empty after the page is created.
+    shownIcon = null;
     await sendIcon();
+    // Drawing the page cancelled any blink; a pending alert (including one from a
+    // phase that ended while the app was closed) starts blinking again.
+    if (alert) blinkStatus();
   } catch (err) {
     console.error('[pomodoro] renderPage failed:', err);
   }
 }
 
+// Used for Skip/Reset. A rebuild puts the native list selection back on
+// "Start / Pause", so the next tap starts the phase instead of skipping or
+// resetting again, and it costs less than four text upgrades.
+export async function redrawPage(): Promise<void> {
+  if (!canDraw()) return;
+  await renderPage();
+}
+
 export async function sendIcon(): Promise<void> {
   const b = bridge;
-  if (!b || !canDraw() || lastIconMode === mode) return;
+  if (!b || !canDraw() || iconFailures >= MAX_ICON_FAILURES || lastIconMode === mode) return;
   const iconMode = mode;
   lastIconMode = iconMode;
+  let ok = false;
   try {
     const imageData = iconMode === 'work' ? getTomatoIcon(ICON_SIZE) : getCoffeeIcon(ICON_SIZE);
     const result = await enqueue('updateImageRawData(icon)', () =>
       b.updateImageRawData(new ImageRawDataUpdate({ containerID: ICON_ID, containerName: 'icon', imageData })));
-    if (result !== ImageRawDataUpdateResult.success) {
-      lastIconMode = null;
-      console.warn('[pomodoro] updateImageRawData(icon) returned', result);
-    }
+    ok = result === ImageRawDataUpdateResult.success;
+    if (!ok) console.warn('[pomodoro] updateImageRawData(icon) returned', result);
   } catch (err) {
-    lastIconMode = null;
     console.error('[pomodoro] sendIcon failed:', err);
   }
+  if (ok) {
+    shownIcon = iconMode;
+    iconFailures = 0;
+    return;
+  }
+  lastIconMode = null;
+  iconFailures++;
+  if (iconFailures >= MAX_ICON_FAILURES) console.warn('[pomodoro] icon sends keep failing; no icon for this session');
+  // No icon beats the previous phase's one: a rebuild empties the container and
+  // retries once. It resets shownIcon, so this branch can't recurse again.
+  if (shownIcon !== null && shownIcon !== mode) await renderPage();
 }
 
 // Called every second while running: the countdown always changes, the bar
@@ -126,6 +163,9 @@ export async function refreshAll(): Promise<void> {
 // only way to flag a phase change. Ends on full brightness.
 export function blinkStatus() {
   cancelBlink();
+  // Before the page exists or while the glasses are off nobody would see it; the
+  // alert blinks once the page is drawn (main.ts) or the glasses go back on.
+  if (!canDraw()) return;
   let step = 0;
   const next = () => {
     blinkTimer = null;
