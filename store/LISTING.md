@@ -26,11 +26,12 @@ Stay focused with the Pomodoro technique, right in your line of sight.
 
 ### Release notes (1.1.0)
 
-One line per supported language, as the portal asks.
+The portal's change log is a single field of up to 500 characters, so only the `en` line
+was submitted; the others are kept for when per-language notes are accepted.
 
 | Language | Notes |
 |---|---|
-| `en` | Tap to start or pause, with Skip and Reset in the tap-and-hold menu. Set your own work and break lengths on the phone, see when the phase ends and how long you've run over. Now in 8 languages. |
+| `en` | Tap to start or pause, with Skip and Reset in the tap-and-hold menu. Set your own work and break lengths on the phone, see when the phase ends and how long you've run over. Clearer progress bar. Now in 8 languages. |
 | `es` | Toca para iniciar o pausar; Saltar y Reiniciar están en el menú de tocar y mantener. Ajusta en el teléfono la duración del trabajo y de los descansos, y ve cuándo termina la fase y cuánto tiempo te has pasado. Ahora en 8 idiomas. |
 | `fr` | Touchez pour démarrer ou mettre en pause ; Passer et Réinitialiser sont dans le menu toucher-maintenir. Réglez sur le téléphone la durée du travail et des pauses, et voyez quand la phase se termine et de combien vous l'avez dépassée. Désormais en 8 langues. |
 | `de` | Tippen startet oder pausiert, Überspringen und Zurücksetzen liegen im Menü per Tippen und Halten. Stell die Länge von Arbeit und Pausen auf dem Handy ein und sieh, wann die Phase endet und wie lange du überzogen hast. Jetzt in 8 Sprachen. |
