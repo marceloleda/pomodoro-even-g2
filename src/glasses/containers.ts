@@ -1,16 +1,15 @@
 import {
   TextContainerProperty,
   ImageContainerProperty,
-  ListContainerProperty,
-  ListItemContainerProperty,
+  MenuContainerProperty,
+  MenuItemProperty,
 } from '@evenrealities/even_hub_sdk';
-import { ICON_SIZE, MENU_ITEMS, TEXT_BRIGHT, TEXT_DIM } from '../config';
-import { buildStatusLine, formatTime, secondsLeft, buildSessionDots, buildProgressBar } from '../state';
-
-// Text lines are 27px tall on the G2; a container whose height minus padding is
-// smaller than that overflows and the firmware draws a scrollbar beside it.
-const TEXT_PADDING = 4;
-const TEXT_ROW_HEIGHT = 40;
+import {
+  ICON_SIZE, TEXT_BRIGHT, TEXT_DIM, TEXT_PADDING, TEXT_ROW_HEIGHT,
+  HEADER_X, HEADER_WIDTH, BODY_X, BODY_WIDTH, MENU_SKIP_ID, MENU_RESET_ID,
+} from '../config';
+import { buildStatusLine, buildTimerText, buildSessionDots, buildProgressBar, buildFooter } from '../state';
+import { t } from '../i18n';
 
 // Container IDs
 export const ICON_ID = 1;
@@ -18,66 +17,58 @@ export const STATUS_ID = 2;
 export const TIMER_ID = 3;
 export const PROGRESS_ID = 4;
 export const DOTS_ID = 5;
-export const MENU_ID = 6;
+export const FOOTER_ID = 6;
 
-export function buildContainers() {
+export const CONTAINER_NAMES: Record<number, string> = {
+  [STATUS_ID]: 'status', [TIMER_ID]: 'timer', [PROGRESS_ID]: 'progress', [DOTS_ID]: 'dots', [FOOTER_ID]: 'footer',
+};
+
+// One text row: lines are 27px tall on the G2, and a container whose height
+// minus padding is smaller than that overflows into a scrollbar.
+function textRow(containerID: number, x: number, y: number, width: number, content: string, textColor: number) {
+  return new TextContainerProperty({
+    xPosition: x, yPosition: y,
+    width, height: TEXT_ROW_HEIGHT,
+    containerID, containerName: CONTAINER_NAMES[containerID],
+    content, textColor,
+    isEventCapture: 0, paddingLength: TEXT_PADDING,
+    borderWidth: 0, borderColor: 0,
+  });
+}
+
+export function buildPage() {
   const iconImg = new ImageContainerProperty({
     xPosition: 20, yPosition: 24,
     width: ICON_SIZE, height: ICON_SIZE,
     containerID: ICON_ID, containerName: 'icon',
   });
 
-  const statusText = new TextContainerProperty({
-    xPosition: 116, yPosition: 18,
-    width: 260, height: TEXT_ROW_HEIGHT,
-    containerID: STATUS_ID, containerName: 'status',
-    content: buildStatusLine(), textColor: TEXT_BRIGHT,
-    isEventCapture: 0, paddingLength: TEXT_PADDING,
-    borderWidth: 0, borderColor: 0,
+  // The timer row takes the input: a tap starts or pauses, so the page needs no
+  // on-screen menu. Its text never wraps, so the firmware has nothing to scroll.
+  const timerText = textRow(TIMER_ID, HEADER_X, 58, HEADER_WIDTH, buildTimerText(), TEXT_BRIGHT);
+  timerText.isEventCapture = 1;
+
+  const textObject = [
+    textRow(STATUS_ID, HEADER_X, 18, HEADER_WIDTH, buildStatusLine(), TEXT_BRIGHT),
+    timerText,
+    textRow(PROGRESS_ID, BODY_X, 124, BODY_WIDTH, buildProgressBar(), TEXT_BRIGHT),
+    textRow(DOTS_ID, BODY_X, 168, BODY_WIDTH, buildSessionDots(), TEXT_DIM),
+    textRow(FOOTER_ID, BODY_X, 236, BODY_WIDTH, buildFooter(), TEXT_DIM),
+  ];
+
+  // Skip and Reset live in the system contextual menu (tap then long press).
+  // A rebuild without menuObject clears it, so every page carries it.
+  const menuObject = new MenuContainerProperty({
+    menuItems: [
+      new MenuItemProperty({ itemName: t.glasses.menuSkip, itemID: MENU_SKIP_ID }),
+      new MenuItemProperty({ itemName: t.glasses.menuReset, itemID: MENU_RESET_ID }),
+    ],
   });
 
-  const timerText = new TextContainerProperty({
-    xPosition: 116, yPosition: 58,
-    width: 260, height: TEXT_ROW_HEIGHT,
-    containerID: TIMER_ID, containerName: 'timer',
-    content: formatTime(secondsLeft()), textColor: TEXT_BRIGHT,
-    isEventCapture: 0, paddingLength: TEXT_PADDING,
-    borderWidth: 0, borderColor: 0,
-  });
-
-  const progressText = new TextContainerProperty({
-    xPosition: 14, yPosition: 124,
-    width: 362, height: TEXT_ROW_HEIGHT,
-    containerID: PROGRESS_ID, containerName: 'progress',
-    content: buildProgressBar(), textColor: TEXT_BRIGHT,
-    isEventCapture: 0, paddingLength: TEXT_PADDING,
-    borderWidth: 0, borderColor: 0,
-  });
-
-  const dotsText = new TextContainerProperty({
-    xPosition: 14, yPosition: 168,
-    width: 362, height: TEXT_ROW_HEIGHT,
-    containerID: DOTS_ID, containerName: 'dots',
-    content: buildSessionDots(), textColor: TEXT_DIM,
-    isEventCapture: 0, paddingLength: TEXT_PADDING,
-    borderWidth: 0, borderColor: 0,
-  });
-
-  // A native list: the firmware moves the highlight on swipes without a
-  // Bluetooth round-trip, and a click reports the selected index.
-  const menuList = new ListContainerProperty({
-    xPosition: 392, yPosition: 44,
-    width: 172, height: 160,
-    containerID: MENU_ID, containerName: 'menu',
-    isEventCapture: 1, paddingLength: 4,
-    borderWidth: 0, borderColor: 0,
-    itemContainer: new ListItemContainerProperty({
-      itemCount: MENU_ITEMS.length,
-      itemWidth: 0,
-      isItemSelectBorderEn: 1,
-      itemName: [...MENU_ITEMS],
-    }),
-  });
-
-  return { iconImg, statusText, timerText, progressText, dotsText, menuList };
+  return {
+    containerTotalNum: 1 + textObject.length,
+    imageObject: [iconImg],
+    textObject,
+    menuObject,
+  };
 }

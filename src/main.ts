@@ -1,7 +1,7 @@
 import './style.css';
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk';
-import { setBridge } from './state';
-import { loadTimerState } from './storage';
+import { setBridge, setSettings } from './state';
+import { loadSettings, loadTimerState } from './storage';
 import { renderPage } from './glasses/display';
 import { setupEventListeners } from './glasses/events';
 import { restoreTimer, resyncTimer } from './timer';
@@ -11,7 +11,14 @@ function isEvenAppEnvironment(): boolean {
   return typeof (window as any).flutter_inappwebview !== 'undefined';
 }
 
+let restored = false;
+
+// Settings first: a saved phase without durationMs (from 1.0.0) takes its length from them.
 async function restoreSavedState() {
+  if (restored) return;
+  restored = true;
+  const savedSettings = await loadSettings();
+  if (savedSettings) setSettings(savedSettings);
   const saved = await loadTimerState();
   if (saved) restoreTimer(saved);
 }
@@ -39,6 +46,8 @@ async function init() {
     });
   } catch (err) {
     console.error('[pomodoro] bridge init failed:', err);
+    // The phone page still shows (and can change) the saved session and settings.
+    await restoreSavedState().catch(() => {});
     renderCompanion(false);
   }
 }

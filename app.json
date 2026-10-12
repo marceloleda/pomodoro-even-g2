@@ -2,14 +2,21 @@
   "package_id": "com.marcelo.pomodoro",
   "edition": "202601",
   "name": "Pomodoro",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "min_sdk_version": "0.0.16",
   "tagline": "Focus timer with work/break cycles for Even G2.",
-  "description": "Pomodoro technique timer for Even G2. 25-minute work sessions with 5-minute short breaks and a 15-minute long break after every 4 sessions. Swipe to choose Start / Pause, Skip or Reset and tap to confirm. When a phase ends the status line blinks and the timer waits for you, and your session is kept if the app is closed.",
+  "description": "Pomodoro technique timer for Even G2. Work sessions with short breaks and a long break after every set: 25, 5 and 15 minutes by default, adjustable on the phone. Tap to start or pause; tap then hold for Skip and Reset. When a phase ends the status line blinks and the timer counts the extra time until you start the next phase, and your session is kept if the app is closed.",
   "author": "Marcelo",
   "entrypoint": "index.html",
   "permissions": [],
   "supported_languages": [
-    "en"
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "zh",
+    "ja",
+    "ko"
   ]
 }

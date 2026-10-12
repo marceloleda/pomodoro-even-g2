@@ -6,6 +6,7 @@
   --color-bg: #ffffff;
   --color-surface: #eeeeee;
   --color-track: rgba(35, 35, 35, 0.12);
+  --color-input: rgba(35, 35, 35, 0.08);
   --color-accent: #fef991;
   /* The token sheet pairs the accent with white text, which is unreadable;
      dark text keeps the primary button legible. */
@@ -20,6 +21,7 @@
     --color-bg: #111111;
     --color-surface: #1a1a1a;
     --color-track: rgba(255, 255, 255, 0.12);
+    --color-input: rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -144,10 +146,76 @@ body {
   outline-offset: 2px;
 }
 
-.help ul {
-  list-style: none;
+.timer-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.settings,
+.help {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setting-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 12px 0;
+}
+
+.setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 44px squares: the minimum comfortable touch target. */
+.step {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--color-input);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.step[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.step-value {
+  min-width: 64px;
+  text-align: center;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.gestures {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+}
+
+.gestures dt {
+  font-weight: 600;
 }

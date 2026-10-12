@@ -6,22 +6,22 @@ import {
   ImageRawDataUpdateResult,
   StartUpPageCreateResult,
 } from '@evenrealities/even_hub_sdk';
-import { ICON_SIZE, TEXT_BRIGHT, TEXT_OFF, ALERT_BLINKS, ALERT_BLINK_MS } from '../config';
+import { ICON_SIZE, TEXT_BRIGHT, TEXT_OFF, ALERT_BLINKS, ALERT_BLINK_MS, HINT_MS } from '../config';
 import {
   bridge, mode, alert, isPageCreated, setPageCreated,
-  formatTime, secondsLeft, buildStatusLine, buildSessionDots, buildProgressBar,
+  buildStatusLine, buildTimerText, buildSessionDots, buildProgressBar, buildFooter,
 } from '../state';
-import { buildContainers, STATUS_ID, TIMER_ID, PROGRESS_ID, DOTS_ID, ICON_ID } from './containers';
+import {
+  buildPage, CONTAINER_NAMES, STATUS_ID, TIMER_ID, PROGRESS_ID, DOTS_ID, FOOTER_ID, ICON_ID,
+} from './containers';
 import { enqueue } from './queue';
 import type { PomodoroMode } from '../types';
 import { getTomatoIcon, getCoffeeIcon } from '../rendering/icons';
-
-const CONTAINER_NAMES: Record<number, string> = {
-  [STATUS_ID]: 'status', [TIMER_ID]: 'timer', [PROGRESS_ID]: 'progress', [DOTS_ID]: 'dots',
-};
+import { t } from '../i18n';
 
 // Last content sent, so unchanged frames are skipped; reset whenever the page is redrawn.
 let lastProgress = '';
+let lastFooter = '';
 let lastIconMode: PomodoroMode | null = null;
 // Icon actually on screen; a create or rebuild leaves the image container empty.
 let shownIcon: PomodoroMode | null = null;
@@ -34,10 +34,14 @@ let iconFailures = 0;
 let startupCalled = false;
 // True while the glasses are off the user's face: nobody sees the display, so skip writes.
 let suspended = false;
+// True while the system exit dialog covers the page: writes would land under it.
+let covered = false;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
+// Puts the footer back after a swipe showed the gesture hint in it.
+let hintTimer: ReturnType<typeof setTimeout> | null = null;
 
 function canDraw(): boolean {
-  return !!bridge && isPageCreated && !suspended;
+  return !!bridge && isPageCreated && !suspended && !covered;
 }
 
 async function writeText(containerID: number, content: string, textColor?: number): Promise<void> {
@@ -58,13 +62,8 @@ export async function renderPage(): Promise<void> {
   const b = bridge;
   if (!b) return;
   cancelBlink();
-  const { iconImg, statusText, timerText, progressText, dotsText, menuList } = buildContainers();
-  const page = {
-    containerTotalNum: 6,
-    imageObject: [iconImg],
-    textObject: [statusText, timerText, progressText, dotsText],
-    listObject: [menuList],
-  };
+  cancelHint();
+  const page = buildPage();
   try {
     let created = false;
     if (!startupCalled) {
@@ -84,7 +83,8 @@ export async function renderPage(): Promise<void> {
       }
     }
     setPageCreated(true);
-    lastProgress = progressText.content ?? '';
+    lastProgress = buildProgressBar();
+    lastFooter = buildFooter();
     // Image containers start empty after the page is created or rebuilt.
     lastIconMode = null;
     shownIcon = null;
@@ -97,9 +97,8 @@ export async function renderPage(): Promise<void> {
   }
 }
 
-// Used for Skip/Reset. A rebuild puts the native list selection back on
-// "Start / Pause", so the next tap starts the phase instead of skipping or
-// resetting again, and it costs less than four text upgrades.
+// Redraws everything with one rebuild (~165ms) where five text upgrades
+// would take ~400ms; used when the whole page changes, as on Skip and Reset.
 export async function redrawPage(): Promise<void> {
   if (!canDraw()) return;
   await renderPage();
@@ -133,10 +132,10 @@ export async function sendIcon(): Promise<void> {
   if (shownIcon !== null && shownIcon !== mode) await renderPage();
 }
 
-// Called every second while running: the countdown always changes, the bar
-// only every PROGRESS_SEGMENTS-th of the phase.
+// Called every second while the countdown or the overtime counter runs: the
+// timer row always changes, the bar only every PROGRESS_SEGMENTS-th of the phase.
 export async function updateTick(): Promise<void> {
-  await writeText(TIMER_ID, formatTime(secondsLeft()));
+  await writeText(TIMER_ID, buildTimerText());
   const progress = buildProgressBar();
   if (progress !== lastProgress && canDraw()) {
     lastProgress = progress;
@@ -144,19 +143,53 @@ export async function updateTick(): Promise<void> {
   }
 }
 
-export async function updateStatusLine(): Promise<void> {
+// Start and Pause change the status line and the footer.
+export async function updateStatus(): Promise<void> {
   cancelBlink();
   await writeText(STATUS_ID, buildStatusLine(), TEXT_BRIGHT);
+  await writeText(TIMER_ID, buildTimerText());
+  await updateFooter();
+}
+
+async function updateFooter(): Promise<void> {
+  cancelHint();
+  const footer = buildFooter();
+  if (footer === lastFooter || !canDraw()) return;
+  lastFooter = footer;
+  await writeText(FOOTER_ID, footer);
 }
 
 export async function refreshAll(): Promise<void> {
   if (!canDraw()) return;
   cancelBlink();
+  cancelHint();
   lastProgress = buildProgressBar();
+  lastFooter = buildFooter();
   await writeText(STATUS_ID, buildStatusLine(), TEXT_BRIGHT);
-  await writeText(TIMER_ID, formatTime(secondsLeft()));
+  await writeText(TIMER_ID, buildTimerText());
   await writeText(PROGRESS_ID, lastProgress);
   await writeText(DOTS_ID, buildSessionDots());
+  await writeText(FOOTER_ID, lastFooter);
+}
+
+// A swipe has nothing to scroll, so it shows the gestures in the footer for a
+// few seconds: every gesture gets a visible response, as the review requires.
+export async function showGestureHint(): Promise<void> {
+  if (!canDraw()) return;
+  cancelHint();
+  lastFooter = t.glasses.gestureHint;
+  hintTimer = setTimeout(() => {
+    hintTimer = null;
+    void updateFooter();
+  }, HINT_MS);
+  await writeText(FOOTER_ID, lastFooter);
+}
+
+function cancelHint() {
+  if (hintTimer) {
+    clearTimeout(hintTimer);
+    hintTimer = null;
+  }
 }
 
 // The glasses have no speaker or haptics: blinking the status line is the
@@ -164,7 +197,7 @@ export async function refreshAll(): Promise<void> {
 export function blinkStatus() {
   cancelBlink();
   // Before the page exists or while the glasses are off nobody would see it; the
-  // alert blinks once the page is drawn (main.ts) or the glasses go back on.
+  // alert blinks once the page is drawn or the glasses go back on.
   if (!canDraw()) return;
   let step = 0;
   const next = () => {
@@ -185,6 +218,22 @@ export function cancelBlink() {
   }
 }
 
+// Set while the exit dialog is up (events.ts redraws once it closes).
+export function setDisplayCovered(value: boolean) {
+  covered = value;
+  if (value) {
+    cancelBlink();
+    cancelHint();
+  }
+}
+
+// After the app exits nothing may reach the glasses, not even a pending hint or blink.
+export function shutdownDisplay() {
+  cancelBlink();
+  cancelHint();
+  setPageCreated(false);
+}
+
 // Driven by the wearing sensor. Taking the glasses off stops display writes
 // (the timer keeps running); putting them back on redraws the current state.
 export async function setDisplaySuspended(value: boolean): Promise<void> {
@@ -192,6 +241,7 @@ export async function setDisplaySuspended(value: boolean): Promise<void> {
   suspended = value;
   if (value) {
     cancelBlink();
+    cancelHint();
     return;
   }
   await refreshAll();

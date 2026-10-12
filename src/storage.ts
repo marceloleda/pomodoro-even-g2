@@ -1,61 +1,103 @@
-import { STORAGE_KEY } from './config';
-import { bridge, getTimerState } from './state';
+import { STORAGE_KEY, SETTINGS_KEY, DEFAULT_SETTINGS, SETTINGS_LIMITS } from './config';
+import { bridge, getTimerState, settings } from './state';
 import { enqueue } from './glasses/queue';
-import type { TimerState } from './types';
+import type { Settings, TimerState } from './types';
 
 // Android can kill a backgrounded WebView without warning, so state is saved on
 // every change rather than on exit. The bridge storage is the documented one;
 // browser localStorage is a fallback for web preview mode and a failed read.
-export function saveTimerState() {
-  const raw = JSON.stringify(getTimerState());
-  writeBrowserStorage(raw);
+function writeItem(key: string, raw: string) {
+  writeBrowserStorage(key, raw);
   const b = bridge;
   if (!b) return;
-  enqueue('setLocalStorage', () => b.setLocalStorage(STORAGE_KEY, raw))
+  enqueue('setLocalStorage', () => b.setLocalStorage(key, raw))
     .catch((err: unknown) => console.warn('[pomodoro] setLocalStorage failed:', err));
 }
 
-export async function loadTimerState(): Promise<TimerState | null> {
+async function readItem(key: string): Promise<string> {
   let raw = '';
   const b = bridge;
   if (b) {
     try {
-      raw = await enqueue('getLocalStorage', () => b.getLocalStorage(STORAGE_KEY));
+      raw = await enqueue('getLocalStorage', () => b.getLocalStorage(key));
     } catch (err) {
       console.warn('[pomodoro] getLocalStorage failed:', err);
     }
   }
-  if (!raw) raw = readBrowserStorage();
+  return raw || readBrowserStorage(key);
+}
+
+export function saveTimerState() {
+  writeItem(STORAGE_KEY, JSON.stringify(getTimerState()));
+}
+
+export async function loadTimerState(): Promise<Partial<TimerState> | null> {
+  const raw = await readItem(STORAGE_KEY);
   return raw ? parseTimerState(raw) : null;
 }
 
-function parseTimerState(raw: string): TimerState | null {
+export function saveSettings() {
+  writeItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+export async function loadSettings(): Promise<Settings | null> {
+  const raw = await readItem(SETTINGS_KEY);
+  if (!raw) return null;
   try {
-    const s: Partial<TimerState> = JSON.parse(raw);
-    const valid =
-      (s.mode === 'work' || s.mode === 'break') &&
-      Number.isInteger(s.cycle) && s.cycle! >= 0 &&
-      typeof s.running === 'boolean' &&
-      Number.isFinite(s.endsAt) &&
-      Number.isFinite(s.remainingMs) && s.remainingMs! >= 0 &&
-      typeof s.alert === 'string';
-    return valid ? (s as TimerState) : null;
+    return clampSettings(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
-function readBrowserStorage(): string {
+// Fills gaps with the defaults and keeps every value inside SETTINGS_LIMITS.
+export function clampSettings(s: Partial<Settings>): Settings {
+  const out = { ...DEFAULT_SETTINGS };
+  for (const key of Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>) {
+    const [min, max] = SETTINGS_LIMITS[key];
+    const v = s[key];
+    if (Number.isFinite(v)) out[key] = Math.min(max, Math.max(min, Math.round(v!)));
+  }
+  return out;
+}
+
+// durationMs and endedAt are missing from states saved by 1.0.0, where alert
+// was the message text; the caller fills them in.
+function parseTimerState(raw: string): Partial<TimerState> | null {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) ?? '';
+    const s = JSON.parse(raw);
+    const valid =
+      (s.mode === 'work' || s.mode === 'break') &&
+      Number.isInteger(s.cycle) && s.cycle >= 0 &&
+      typeof s.running === 'boolean' &&
+      Number.isFinite(s.endsAt) && (!s.running || s.endsAt > 0) &&
+      Number.isFinite(s.remainingMs) && s.remainingMs >= 0;
+    if (!valid) return null;
+    const alert = typeof s.alert === 'string' ? s.alert !== '' : s.alert === true;
+    const state: Partial<TimerState> = {
+      mode: s.mode, cycle: s.cycle, running: s.running, endsAt: s.endsAt, remainingMs: s.remainingMs,
+      // A running phase can't also be waiting on the previous one's alert.
+      alert: alert && !s.running,
+    };
+    if (Number.isFinite(s.durationMs) && s.durationMs > 0) state.durationMs = s.durationMs;
+    if (Number.isFinite(s.endedAt) && s.endedAt > 0) state.endedAt = s.endedAt;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+function readBrowserStorage(key: string): string {
+  try {
+    return window.localStorage.getItem(key) ?? '';
   } catch {
     return '';
   }
 }
 
-function writeBrowserStorage(raw: string) {
+function writeBrowserStorage(key: string, raw: string) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, raw);
+    window.localStorage.setItem(key, raw);
   } catch {
     // Storage can be unavailable (private mode, blocked site data).
   }
