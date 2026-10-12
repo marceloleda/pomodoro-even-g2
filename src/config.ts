@@ -29,9 +29,12 @@ export const HEADER_WIDTH = 440;
 export const BODY_X = 14;
 export const BODY_WIDTH = 548;
 
-// Progress bar, drawn with ━/─ text as the design guidelines recommend. Each
-// glyph advances 20px, so 27 fit the 540px row; one more wraps and adds a scrollbar.
+// Progress bar, drawn with block glyphs from the design guidelines: a half-height
+// bar over a thin track. ━/─ (3px vs 1px lines) made the filled part hard to tell
+// apart. Each glyph advances 20px, so 27 fit the 540px row; one more wraps and adds a scrollbar.
 export const PROGRESS_SEGMENTS = 26;
+export const PROGRESS_FILLED = '▄';
+export const PROGRESS_EMPTY = '▁';
 
 // Text brightness levels (textColor, 0-4; 0 may be invisible on hardware)
 export const TEXT_BRIGHT = 4;

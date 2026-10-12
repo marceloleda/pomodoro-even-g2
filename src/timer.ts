@@ -6,7 +6,7 @@ import {
 } from './state';
 import { saveTimerState, saveSettings } from './storage';
 import {
-  updateTick, updateStatus, refreshAll, redrawPage, sendIcon, blinkStatus, cancelBlink,
+  updateTick, updateStatus, refreshAll, sendIcon, blinkStatus, cancelBlink,
 } from './glasses/display';
 
 // Wake slightly after the second boundary so the countdown never shows the same second twice.
@@ -114,6 +114,8 @@ function finishPhase(blink: boolean) {
   void refreshPhaseDisplay().then(() => { if (blink && alert) blinkStatus(); });
 }
 
+// Text upgrades and an in-place icon send rather than a page rebuild: upgrades
+// are flicker-free on hardware, and the icon only goes out when the mode changes.
 async function refreshPhaseDisplay() {
   await refreshAll();
   await sendIcon();
@@ -148,15 +150,14 @@ export function toggleTimer() {
   else startTimer();
 }
 
-// Skip and Reset rebuild the page: cheaper than upgrading five text containers.
 export async function skipToNext() {
   enterPhase(nextPhase());
-  await redrawPage();
+  await refreshPhaseDisplay();
 }
 
 export async function resetTimer() {
   enterPhase({ mode: 'work', cycle: 0 });
-  await redrawPage();
+  await refreshPhaseDisplay();
 }
 
 // New lengths apply to a phase that hasn't started yet; one in progress keeps its

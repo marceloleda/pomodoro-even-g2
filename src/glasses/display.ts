@@ -97,13 +97,6 @@ export async function renderPage(): Promise<void> {
   }
 }
 
-// Redraws everything with one rebuild (~165ms) where five text upgrades
-// would take ~400ms; used when the whole page changes, as on Skip and Reset.
-export async function redrawPage(): Promise<void> {
-  if (!canDraw()) return;
-  await renderPage();
-}
-
 export async function sendIcon(): Promise<void> {
   const b = bridge;
   if (!b || !canDraw() || iconFailures >= MAX_ICON_FAILURES || lastIconMode === mode) return;

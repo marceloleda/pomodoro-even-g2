@@ -4,7 +4,8 @@
 // missing glyph is silently dropped). Run with `npm run check:text`.
 import { getAdvW, measureTextWrap } from '@evenrealities/pretext';
 import {
-  TEXT_PADDING, HEADER_WIDTH, BODY_WIDTH, PROGRESS_SEGMENTS, SETTINGS_LIMITS, OVERTIME_MAX_MS,
+  TEXT_PADDING, HEADER_WIDTH, BODY_WIDTH, PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY,
+  SETTINGS_LIMITS, OVERTIME_MAX_MS,
 } from '../src/config.ts';
 import { LANGUAGES, STRINGS } from '../src/i18n/strings.ts';
 
@@ -33,7 +34,8 @@ function checkLine(lang: string, what: string, text: string, innerWidth: number)
   if (lineCount > 1) problems.push(`${lang} ${what}: wraps (${lineWidths.join('+')}px > ${innerWidth}px) "${text}"`);
 }
 
-checkLine('all', 'progress bar', '━'.repeat(PROGRESS_SEGMENTS), bodyInner);
+checkLine('all', 'progress bar', PROGRESS_FILLED.repeat(PROGRESS_SEGMENTS), bodyInner);
+checkLine('all', 'progress track', PROGRESS_EMPTY.repeat(PROGRESS_SEGMENTS), bodyInner);
 checkLine('all', 'session dots', Array(maxSessions).fill('●').join(' '), bodyInner);
 checkLine('all', 'timer', longestOvertime, headerInner);
 

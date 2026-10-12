@@ -1,6 +1,6 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import type { PomodoroMode, Settings, TimerState } from './types';
-import { DEFAULT_SETTINGS, PROGRESS_SEGMENTS, OVERTIME_MAX_MS } from './config';
+import { DEFAULT_SETTINGS, PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, OVERTIME_MAX_MS } from './config';
 import { t, formatClock } from './i18n';
 
 // --- Mutable state ---
@@ -108,7 +108,7 @@ export function buildStatusLine(): string {
 
 export function buildProgressBar(): string {
   const filled = Math.round(progressFraction() * PROGRESS_SEGMENTS);
-  return '━'.repeat(filled) + '─'.repeat(PROGRESS_SEGMENTS - filled);
+  return PROGRESS_FILLED.repeat(filled) + PROGRESS_EMPTY.repeat(PROGRESS_SEGMENTS - filled);
 }
 
 // Footer: when the phase ends while running, otherwise what a tap does.
