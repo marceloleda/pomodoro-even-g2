@@ -7,9 +7,8 @@ import {
 import { toggleTimer, skipToNext, resetTimer, applySettings } from '../timer';
 import { clampSettings } from '../storage';
 import { t, formatClock } from '../i18n';
-import type { Settings } from '../types';
 
-type SettingKey = keyof Settings;
+type SettingKey = keyof typeof SETTINGS_LIMITS;
 
 // One tap of − / + moves a setting by this much; the long lengths step by 5
 // so going from 25 to 50 minutes takes a few taps, not 25.
@@ -71,6 +70,15 @@ export function renderCompanion(glassesConnected: boolean) {
         </div>
         <p class="caption dim">${t.phone.settingsNote}</p>
       </section>
+      <section class="card">
+        <label class="setting" for="s-compactView">
+          <span class="setting-text">
+            <span class="setting-label">${t.phone.compactView}</span>
+            <span class="caption dim">${t.phone.compactViewNote}</span>
+          </span>
+          <input id="s-compactView" class="switch" type="checkbox" role="switch">
+        </label>
+      </section>
       <section class="card help">
         <h2 class="subtitle">${t.phone.helpTitle}</h2>
         <dl class="gestures">
@@ -86,6 +94,7 @@ export function renderCompanion(glassesConnected: boolean) {
   document.getElementById('c-skip')?.addEventListener('click', () => void skipToNext());
   document.getElementById('c-reset')?.addEventListener('click', () => void resetTimer());
   document.getElementById('c-settings')?.addEventListener('click', onStepperClick);
+  document.getElementById('s-compactView')?.addEventListener('change', onCompactViewChange);
 
   syncPolling();
   document.addEventListener('visibilitychange', syncPolling);
@@ -99,6 +108,11 @@ function onStepperClick(event: MouseEvent) {
   const key = button.dataset.key as SettingKey;
   const next = settings[key] + Number(button.dataset.dir) * SETTING_STEPS[key];
   applySettings(clampSettings({ ...settings, [key]: next }));
+  update();
+}
+
+function onCompactViewChange(event: Event) {
+  applySettings({ ...settings, compactView: (event.target as HTMLInputElement).checked });
   update();
 }
 
@@ -160,4 +174,6 @@ function update() {
       button.setAttribute('aria-disabled', String(atLimit));
     }
   }
+  const compactView = document.getElementById('s-compactView') as HTMLInputElement | null;
+  if (compactView) compactView.checked = settings.compactView;
 }

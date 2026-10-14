@@ -6,15 +6,16 @@ export const DEFAULT_SETTINGS = {
   shortBreakMinutes: 5,
   longBreakMinutes: 15,
   sessionsPerSet: 4,
+  compactView: true,
 };
 
-// Allowed range for each setting, [min, max]. Eight session dots still fit one row.
-export const SETTINGS_LIMITS: Record<keyof typeof DEFAULT_SETTINGS, readonly [number, number]> = {
+// Allowed range for each numeric setting, [min, max]. Eight session dots still fit one row.
+export const SETTINGS_LIMITS = {
   workMinutes: [5, 90],
   shortBreakMinutes: [1, 30],
   longBreakMinutes: [5, 60],
   sessionsPerSet: [2, 8],
-};
+} as const satisfies Record<string, readonly [number, number]>;
 
 // Icon
 export const ICON_SIZE = 80;
@@ -29,6 +30,25 @@ export const HEADER_WIDTH = 440;
 export const BODY_X = 14;
 export const BODY_WIDTH = 548;
 
+// Compact view: while a phase runs, the top-right corner shows "▶ 24:13" and a
+// mini bar, each in its own container so the bar stays put while the digits
+// (which differ in width) change. The widest time ("▶ 44:44") is 79px, the bar
+// 100px; the bar keeps the body's 14px margin on the right.
+export const COMPACT_TIMER_WIDTH = 92;
+export const COMPACT_BAR_WIDTH = 112;
+export const COMPACT_BAR_X = 576 - BODY_X - COMPACT_BAR_WIDTH;
+export const COMPACT_TIMER_X = COMPACT_BAR_X - COMPACT_TIMER_WIDTH;
+export const COMPACT_Y = 18;
+// The ▶ and the colon blink with the seconds, so the corner shows the timer is running.
+export const PULSE_ON = '▶';
+export const PULSE_OFF = '▷';
+// Each segment of the mini bar grows through these before the next one starts.
+export const MINI_BAR_SEGMENTS = 5;
+export const MINI_BAR_LEVELS = '▁▂▃▄';
+// A blank row. A space, not '': protobuf drops empty strings, so an upgrade
+// with '' may not clear anything.
+export const BLANK_TEXT = ' ';
+
 // Progress bar, drawn with block glyphs from the design guidelines: a half-height
 // bar over a thin track. ━/─ (3px vs 1px lines) made the filled part hard to tell
 // apart. Each glyph advances 20px, so 27 fit the 540px row; one more wraps and adds a scrollbar.
@@ -41,6 +61,12 @@ export const TEXT_BRIGHT = 4;
 export const TEXT_DIM = 2;
 // Blink "off" level for the phase-end alert; 0 may be fully dark, which is the point here
 export const TEXT_OFF = 0;
+// Start and Pause fade between the full and compact pages: the old one steps
+// down through these levels, the new one is drawn at the lowest and steps up,
+// each row stopping at its own brightness. A step is one Bluetooth write per
+// row, so there are few of them.
+export const FADE_LEVELS: readonly number[] = [1, 2];
+export const FADE_STEP_MS = 80;
 
 // Contextual menu (tap then long press). Item IDs must be non-zero.
 export const MENU_SKIP_ID = 1;

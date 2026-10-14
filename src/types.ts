@@ -22,4 +22,6 @@ export interface Settings {
   shortBreakMinutes: number;
   longBreakMinutes: number;
   sessionsPerSet: number;
+  // While a phase runs, the glasses show only the time, in a corner.
+  compactView: boolean;
 }

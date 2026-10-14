@@ -57,6 +57,9 @@ export interface Strings {
     decrease: (setting: string) => string;
     increase: (setting: string) => string;
     settingsNote: string;
+    // Switch for the compact view on the glasses, and what it does
+    compactView: string;
+    compactViewNote: string;
     helpTitle: string;
     // [gesture, what it does]
     helpGestures: Array<[string, string]>;
@@ -109,6 +112,8 @@ const en: Strings = {
     decrease: (setting) => `Decrease ${setting}`,
     increase: (setting) => `Increase ${setting}`,
     settingsNote: 'A phase that has already started keeps its length; changes apply from the next one.',
+    compactView: 'Compact view',
+    compactViewNote: 'While the timer runs, the glasses show only the time and a small progress bar, in a corner. Tap to pause and see everything.',
     helpTitle: 'On your glasses',
     helpGestures: [
       ['Tap', 'Start or pause'],
@@ -162,6 +167,8 @@ const es: Strings = {
     decrease: (setting) => `Reducir ${setting.toLowerCase()}`,
     increase: (setting) => `Aumentar ${setting.toLowerCase()}`,
     settingsNote: 'Una fase ya iniciada conserva su duración; los cambios se aplican desde la siguiente.',
+    compactView: 'Vista compacta',
+    compactViewNote: 'Mientras el temporizador corre, las gafas solo muestran el tiempo y una pequeña barra de progreso, en una esquina. Toca para pausar y ver todo.',
     helpTitle: 'En tus gafas',
     helpGestures: [
       ['Tocar', 'Iniciar o pausar'],
@@ -215,6 +222,8 @@ const fr: Strings = {
     decrease: (setting) => `Diminuer : ${setting.toLowerCase()}`,
     increase: (setting) => `Augmenter : ${setting.toLowerCase()}`,
     settingsNote: "Une phase déjà commencée garde sa durée ; les changements s'appliquent à partir de la suivante.",
+    compactView: 'Vue compacte',
+    compactViewNote: "Pendant que le minuteur tourne, les lunettes n'affichent que le temps et une petite barre de progression, dans un coin. Touchez pour mettre en pause et tout voir.",
     helpTitle: 'Sur vos lunettes',
     helpGestures: [
       ['Toucher', 'Démarrer ou mettre en pause'],
@@ -268,6 +277,8 @@ const de: Strings = {
     decrease: (setting) => `${setting} verringern`,
     increase: (setting) => `${setting} erhöhen`,
     settingsNote: 'Eine bereits gestartete Phase behält ihre Länge; Änderungen gelten ab der nächsten.',
+    compactView: 'Kompaktansicht',
+    compactViewNote: 'Während der Timer läuft, zeigt die Brille nur die Zeit und einen kleinen Fortschrittsbalken in einer Ecke. Tippen pausiert und zeigt wieder alles.',
     helpTitle: 'Auf deiner Brille',
     helpGestures: [
       ['Tippen', 'Starten oder pausieren'],
@@ -321,6 +332,8 @@ const it: Strings = {
     decrease: (setting) => `Diminuisci ${setting.toLowerCase()}`,
     increase: (setting) => `Aumenta ${setting.toLowerCase()}`,
     settingsNote: 'Una fase già iniziata mantiene la sua durata; le modifiche valgono dalla successiva.',
+    compactView: 'Vista compatta',
+    compactViewNote: 'Mentre il timer scorre, gli occhiali mostrano solo il tempo e una piccola barra di avanzamento, in un angolo. Tocca per mettere in pausa e vedere tutto.',
     helpTitle: 'Sui tuoi occhiali',
     helpGestures: [
       ['Tocca', 'Avvia o metti in pausa'],
@@ -374,6 +387,8 @@ const zh: Strings = {
     decrease: (setting) => `减少${setting}`,
     increase: (setting) => `增加${setting}`,
     settingsNote: '已开始的阶段保持原有时长，更改从下一阶段起生效。',
+    compactView: '精简视图',
+    compactViewNote: '计时进行时，眼镜只在角落显示时间和一个小进度条。轻点暂停即可查看全部内容。',
     helpTitle: '在眼镜上',
     helpGestures: [
       ['轻点', '开始或暂停'],
@@ -427,6 +442,8 @@ const ja: Strings = {
     decrease: (setting) => `${setting}を減らす`,
     increase: (setting) => `${setting}を増やす`,
     settingsNote: '開始済みのフェーズは長さが変わらず、変更は次のフェーズから適用されます。',
+    compactView: 'コンパクト表示',
+    compactViewNote: 'タイマーの作動中は、メガネの隅に時間と小さな進行バーだけを表示します。タップで一時停止すると、すべて表示されます。',
     helpTitle: 'メガネでの操作',
     helpGestures: [
       ['タップ', '開始・一時停止'],
@@ -480,6 +497,8 @@ const ko: Strings = {
     decrease: (setting) => `${setting} 줄이기`,
     increase: (setting) => `${setting} 늘리기`,
     settingsNote: '이미 시작한 단계는 길이가 유지되며, 변경 사항은 다음 단계부터 적용됩니다.',
+    compactView: '간단히 보기',
+    compactViewNote: '타이머가 돌아가는 동안 안경 모서리에 시간과 작은 진행 막대만 표시됩니다. 탭하여 일시정지하면 모든 정보가 보입니다.',
     helpTitle: '안경에서',
     helpGestures: [
       ['탭', '시작 또는 일시정지'],

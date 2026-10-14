@@ -11,6 +11,7 @@ A Pomodoro technique timer for **Even Realities G2** smart glasses, built with t
 - **One tap to start or pause**; Skip and Reset live in the glasses' contextual menu
 - **Pixel art icons**: tomato for work, coffee cup for breaks
 - **Text progress bar** (`▄▄▄▄▁▁▁▁`), **session dots** and the clock time the phase **ends at**
+- **Compact view**: while the timer runs, only the time and a mini progress bar stay on the glasses, dimmed in the top-right corner; the ▶ and the colon pulse with the seconds, and Start/Pause fade between the two pages. Pause to see everything (a switch on the phone turns it off)
 - **Phase-end alert**: the glasses have no speaker or haptics, so the status line blinks (again every minute for 10 minutes) and the timer counts the extra time (`+02:13`) until you start the next phase
 - **Survives a locked phone and app restarts**: the timer runs on the wall clock and its state is saved on every change
 - **Phone companion page** in the Even app with the same controls and the timer settings
@@ -85,6 +86,12 @@ Ends at 14:35
 - Icon (80x80), status line, timer (or `+mm:ss` overtime after a phase ends), progress bar, session dots
 - Footer: when the phase ends, or what a tap does while the timer waits
 - The timer row captures input; Skip and Reset are in the system contextual menu
+
+With the compact view on, a running phase shows only the time and a five-segment bar whose current segment grows `▁▂▃▄`; a swipe shows the gestures at the bottom:
+
+```
+                                    ▶ 18:37  ▄▄▃▁▁
+```
 
 ## License
 

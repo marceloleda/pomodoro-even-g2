@@ -1,6 +1,9 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import type { PomodoroMode, Settings, TimerState } from './types';
-import { DEFAULT_SETTINGS, PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, OVERTIME_MAX_MS } from './config';
+import {
+  DEFAULT_SETTINGS, PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, OVERTIME_MAX_MS,
+  PULSE_ON, PULSE_OFF, MINI_BAR_SEGMENTS, MINI_BAR_LEVELS,
+} from './config';
 import { t, formatClock } from './i18n';
 
 // --- Mutable state ---
@@ -69,6 +72,12 @@ export function progressFraction(now = Date.now()): number {
   return Math.min(1, Math.max(0, 1 - msLeft(now) / durationMs));
 }
 
+// While a phase runs the glasses can show just the time; paused, waiting or
+// alerting, they show the whole page.
+export function isCompactView(): boolean {
+  return running && settings.compactView;
+}
+
 // A phase that hasn't been started or paused yet.
 export function isPhaseUntouched(): boolean {
   return !running && remainingMs === durationMs;
@@ -91,6 +100,23 @@ export function formatTime(seconds: number): string {
 export function buildTimerText(now = Date.now()): string {
   if (alert && endedAt) return `+${formatTime(Math.floor(overtimeMs(now) / 1000))}`;
   return formatTime(secondsLeft(now));
+}
+
+// Compact view: the ▶ and the colon blink with the seconds.
+export function buildCompactTimer(now = Date.now()): string {
+  const seconds = secondsLeft(now);
+  const time = formatTime(seconds);
+  return seconds % 2 === 0 ? `${PULSE_ON} ${time}` : `${PULSE_OFF} ${time.replace(':', ' ')}`;
+}
+
+// Compact view: each segment grows ▁ ▂ ▃ and fills ▄ before the next one starts.
+export function buildMiniBar(): string {
+  const levels = [...MINI_BAR_LEVELS];
+  const steps = levels.length - 1;
+  const done = Math.floor(progressFraction() * MINI_BAR_SEGMENTS * steps);
+  return Array.from({ length: MINI_BAR_SEGMENTS }, (_, i) =>
+    levels[Math.min(steps, Math.max(0, done - i * steps))]
+  ).join('');
 }
 
 export function buildSessionDots(): string {

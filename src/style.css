@@ -210,6 +210,51 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A checkbox drawn as a switch; on, it takes the accent like the primary button. */
+.switch {
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 52px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--color-input);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-text-dim);
+  transition: transform 0.2s;
+}
+
+.switch:checked {
+  background: var(--color-accent);
+}
+
+.switch:checked::after {
+  transform: translateX(20px);
+  background: var(--color-text-on-accent);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
 .gestures {
   display: grid;
   grid-template-columns: auto 1fr;
