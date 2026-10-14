@@ -2,8 +2,11 @@
 
 A Pomodoro technique timer for **Even Realities G2** smart glasses, built with the Even Hub SDK.
 
-![Work Mode](screenshots/work-mode.png)
-![Break Mode](screenshots/break-mode.png)
+<p align="center">
+  <img src="screenshots/compact-view.gif" width="576" alt="A tap fades the paused page into the compact view: ▶ 11:30 and a mini progress bar in the top-right corner, the ▶ and the colon pulsing every second. Another tap fades back to the full page.">
+</p>
+
+<p align="center"><sub>Simulator recording: a tap starts the timer and the page fades to the compact view; a tap pauses and brings everything back.</sub></p>
 
 ## Features
 
@@ -17,6 +20,18 @@ A Pomodoro technique timer for **Even Realities G2** smart glasses, built with t
 - **Phone companion page** in the Even app with the same controls and the timer settings
 - **8 languages**: English, Spanish, French, German, Italian, Chinese, Japanese and Korean, picked from the phone's language
 - **Saves battery** by skipping display updates while the glasses are off your face
+
+## Screenshots
+
+| Paused | Running (compact view) | Phase-end alert |
+|:---:|:---:|:---:|
+| ![Paused work session: tomato icon, status, 18:36, progress bar, session dots and what a tap does](screenshots/work-paused.png) | ![Compact view: only ▶ 11:36 and a mini progress bar in the top-right corner](screenshots/compact-view.png) | ![Break alert: Break time!, overtime +00:45 and the next phase's length](screenshots/break-alert.png) |
+
+The phone page in the Even app mirrors the timer, has the same controls and holds the settings (light and dark theme):
+
+<p align="center">
+  <img src="screenshots/phone-page.png" width="600" alt="Phone page in light and dark theme: running timer with progress, Pause, Skip and Reset buttons, the phase lengths and the Compact view switch">
+</p>
 
 ## Controls
 
@@ -53,6 +68,20 @@ npm run sim
 ```
 
 `npm run sim` calls the simulator directly because `npx evenhub-simulator` fails: npm drops its `.bin` link, since its platform packages declare the same command name.
+
+### Run on your glasses
+
+1. Turn on Developer Mode in the Even Realities app.
+2. Start the dev server: `npm run dev` (it listens on your local network).
+3. In another terminal, make a QR code for your computer's LAN address (`hostname -I` on Linux, `ipconfig getifaddr en0` on macOS):
+
+   ```bash
+   npx evenhub qr --url "http://<your-lan-ip>:5173"
+   ```
+
+4. In the app's **Even Hub** tab, tap **Scan QR** and point the camera at the terminal. The app opens on the glasses, and saving a file updates it without scanning again.
+
+The phone has to reach your computer on port 5173: if the scan doesn't connect, check the firewall, or Wi-Fi client isolation (a phone hotspot gets around it). In this mode, locking the phone suspends the WebView, so the locked-phone behavior is tested with a Beta build instead (see the [pre-submission checklist](store/LISTING.md#pre-submission-checklist)).
 
 ### Build & Package
 
@@ -95,4 +124,4 @@ With the compact view on, a running phase shows only the time and a five-segment
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -67,9 +67,10 @@ A Pomodoro focus timer for your glasses: work sessions, short and long breaks, a
 
 - **Cover:** the portal builds it from a screenshot placed over a stock environment photo (Office is used here); no separate background image is uploaded.
 - **Screenshots:** `screenshots/*.png`, the raw 576x288 framebuffer from the simulator's screenshot API (the format the guidelines ask for):
-  1. `1-work-running.png`: work session in progress
-  2. `2-break-alert.png`: phase-end alert waiting for the user
-  3. `3-long-break.png`: long break after a full set
+  1. `1-work-paused.png`: work session paused partway
+  2. `2-compact-view.png`: work session running in the compact view (the default): only the time and a mini bar, top-right
+  3. `3-break-alert.png`: phase-end alert waiting for the user
+  4. `4-long-break.png`: long break after a full set, paused
 
 ## Privacy
 
