@@ -40,15 +40,21 @@ let blinkTimer: ReturnType<typeof setTimeout> | null = null;
 // Puts the footer back after a swipe showed the gesture hint in it.
 let hintTimer: ReturnType<typeof setTimeout> | null = null;
 // Layout of the last page sent. Writes queued after it run once it is drawn, so
-// they go to its rows. shownView is the last one drawn, kept for a failed rebuild.
+// they go to its rows. shownView is the last one drawn, kept for a failed rebuild;
+// both are null after a call that timed out, when the page on screen is unknown.
 let pageView: PageView | null = null;
 let shownView: PageView | null = null;
-// Every redraw bumps fadeRun, which stops a fade in progress; fading is set while one runs.
+// Every redraw bumps fadeRun, which stops a fade in progress. A fade keeps its run
+// in fadeOwner: until the next redraw its rows may be dimmed, even if it was cut short.
 let fadeRun = 0;
-let fading = false;
+let fadeOwner = -1;
 
 function canDraw(): boolean {
   return !!bridge && isPageCreated && !suspended && !covered;
+}
+
+function fading(): boolean {
+  return fadeOwner === fadeRun;
 }
 
 function currentView(): PageView {
@@ -56,7 +62,8 @@ function currentView(): PageView {
 }
 
 // Switching layouts takes a rebuild. Only Start, Pause, a phase end, Skip, Reset
-// or the setting can call for one, so refreshAll and updateStatus check here.
+// or the setting can call for one, so refreshAll and updateStatus check here, and
+// updateTick in case a switch failed.
 function viewChanged(): boolean {
   return pageView !== currentView();
 }
@@ -81,10 +88,11 @@ function writeRow(containerID: number, level?: number): Promise<void> {
 }
 
 // Draws the whole page: the startup page the first time, a rebuild after that.
-// A fade draws it dimmed to `maxLevel`; any other redraw stops a fade.
-export async function renderPage(maxLevel?: number): Promise<void> {
+// A fade draws it dimmed to `maxLevel` and sends the icon itself once the rows
+// are lit; any other redraw stops a fade. Returns whether the page was drawn.
+export async function renderPage(maxLevel?: number): Promise<boolean> {
   const b = bridge;
-  if (!b) return;
+  if (!b) return false;
   if (maxLevel === undefined) stopFade();
   cancelBlink();
   cancelHint();
@@ -107,7 +115,7 @@ export async function renderPage(maxLevel?: number): Promise<void> {
       if (!rebuilt) {
         console.error('[pomodoro] rebuildPageContainer failed');
         pageView = shownView;
-        return;
+        return false;
       }
     }
     shownView = view;
@@ -117,13 +125,17 @@ export async function renderPage(maxLevel?: number): Promise<void> {
     // Image containers start empty after the page is created or rebuilt.
     lastIconMode = null;
     shownIcon = null;
-    await sendIcon();
+    if (maxLevel === undefined) await sendIcon();
     // Drawing the page cancelled any blink; a pending alert (including one from a
     // phase that ended while the app was closed) starts blinking again.
     if (alert) blinkStatus();
+    return true;
   } catch (err) {
     console.error('[pomodoro] renderPage failed:', err);
-    pageView = shownView;
+    // A call that timed out may still go through, so either page could be up:
+    // the next redraw rebuilds it.
+    pageView = shownView = null;
+    return false;
   }
 }
 
@@ -157,8 +169,14 @@ export async function sendIcon(): Promise<void> {
 
 // Called every second while the countdown or the overtime counter runs: the
 // timer row always changes (on the compact page the pulse too), the bar only
-// when it gains a segment, or on the compact page a step.
+// when it gains a segment, or on the compact page a step. A page left in the
+// wrong layout (a switch that failed or timed out) is rebuilt here, unless a
+// fade is switching it.
 export async function updateTick(): Promise<void> {
+  if (canDraw() && viewChanged() && !fading()) {
+    await renderPage();
+    return;
+  }
   await writeRow(TIMER_ID);
   const progress = pageView && rowText(PROGRESS_ID, pageView);
   if (progress && progress !== lastProgress && canDraw()) {
@@ -174,7 +192,7 @@ export async function updateStatus(): Promise<void> {
   if (!canDraw()) return;
   if (viewChanged()) return fadeToView();
   // Tapped again mid-fade, back to the page it started from: undim every row.
-  if (fading) return refreshAll();
+  if (fading()) return refreshAll();
   await writeRow(STATUS_ID, TEXT_BRIGHT);
   await writeRow(TIMER_ID);
   await updateFooter();
@@ -189,33 +207,40 @@ async function updateFooter(): Promise<void> {
   await writeText(FOOTER_ID, footer);
 }
 
-// Every row at its own brightness, which also undoes a fade or a blink; a new
-// page if the layout changed.
+// Every row at its own brightness, which also undoes a fade or a blink, and the
+// icon if the page lacks it; a new page if the layout changed. Phase changes come
+// here rather than to a rebuild: text upgrades are flicker-free on hardware, and
+// the icon only goes out when the mode changes.
 export async function refreshAll(): Promise<void> {
   if (!canDraw()) return;
   stopFade();
-  if (viewChanged() || !pageView) return renderPage();
+  if (viewChanged() || !pageView) {
+    await renderPage();
+    return;
+  }
   cancelBlink();
   cancelHint();
   lastProgress = rowText(PROGRESS_ID, pageView);
   lastFooter = rowText(FOOTER_ID, pageView);
   for (const [containerID, level] of VIEW_ROWS[pageView]) await writeRow(containerID, level);
+  await sendIcon();
 }
 
 function stopFade() {
   fadeRun++;
-  fading = false;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // Moves every row with text toward `level`, each capped at its own brightness.
-// `shown` holds each row's level, so rows already there aren't rewritten.
-async function stepRows(level: number, shown: Map<number, number>): Promise<boolean> {
+// `shown` holds each row's level, so rows already there aren't rewritten. Stops
+// as soon as the fade does, so a cut-short fade doesn't mix with the redraw.
+async function stepRows(level: number, shown: Map<number, number>, live: () => boolean): Promise<boolean> {
   const view = pageView;
   if (!view) return false;
   let wrote = false;
   for (const [containerID, own] of VIEW_ROWS[view]) {
+    if (!live()) break;
     const next = Math.min(level, own);
     if (shown.get(containerID) === next || rowText(containerID, view) === BLANK_TEXT) continue;
     shown.set(containerID, next);
@@ -232,28 +257,38 @@ async function stepRows(level: number, shown: Map<number, number>): Promise<bool
 async function fadeToView(): Promise<void> {
   stopFade();
   const run = fadeRun;
-  fading = true;
+  fadeOwner = run;
   const live = () => run === fadeRun && canDraw();
   const floor = FADE_LEVELS[0];
   let shown = new Map(pageView ? VIEW_ROWS[pageView] : []);
   for (const level of [...FADE_LEVELS].reverse()) {
-    if (await stepRows(level, shown)) await sleep(FADE_STEP_MS);
+    if (await stepRows(level, shown, live)) await sleep(FADE_STEP_MS);
     if (!live()) return;
   }
-  await renderPage(floor);
+  // Brightening the old rows back would leave the wrong page up (a frozen
+  // "▶ 24:13" after Pause), so a page that wasn't drawn is retried at full brightness.
+  if (!(await renderPage(floor))) {
+    if (live()) await refreshAll();
+    return;
+  }
   if (!pageView) return;
   shown = new Map([...VIEW_ROWS[pageView]].map(([containerID, own]) => [containerID, Math.min(floor, own)]));
   for (const level of [...FADE_LEVELS.slice(1), TEXT_BRIGHT]) {
     await sleep(FADE_STEP_MS);
     if (!live()) return;
-    await stepRows(level, shown);
+    await stepRows(level, shown, live);
   }
-  fading = false;
+  if (!live()) return;
+  stopFade();
+  // Only now: the image has no brightness to fade, and its transfer would stall the fade.
+  await sendIcon();
 }
 
 // A swipe has nothing to scroll, so it shows the gestures in the footer for a
 // few seconds: every gesture gets a visible response, as the review requires.
 export async function showGestureHint(): Promise<void> {
+  // A fade would write over the hint, so the switch finishes first.
+  if (fading()) await refreshAll();
   if (!canDraw() || !pageView) return;
   cancelHint();
   lastFooter = t.glasses.gestureHint;
@@ -273,12 +308,12 @@ function cancelHint() {
 }
 
 // The glasses have no speaker or haptics: blinking the status line is the
-// only way to flag a phase change. Ends on full brightness.
+// only way to flag a phase change. Ends on full brightness. A blink already
+// running carries on: a redraw that started one is often followed by a call here.
 export function blinkStatus() {
-  cancelBlink();
   // Before the page exists or while the glasses are off nobody would see it; the
   // alert blinks once the page is drawn or the glasses go back on.
-  if (!canDraw()) return;
+  if (blinkTimer || !canDraw()) return;
   let step = 0;
   const next = () => {
     blinkTimer = null;
@@ -326,6 +361,5 @@ export async function setDisplaySuspended(value: boolean): Promise<void> {
     return;
   }
   await refreshAll();
-  await sendIcon();
   if (alert) blinkStatus();
 }

@@ -24,6 +24,10 @@ Stay focused with the Pomodoro technique, right in your line of sight.
 - Your session keeps running with the phone locked and is still there if you close and reopen the app
 - Double-tap to exit
 
+### Release notes (1.2.0, `en`)
+
+New compact view: while the timer runs, the glasses show only the time and a small progress bar in the top-right corner, with the ▶ pulsing each second. Tap to pause and see everything again; Start and Pause fade between the two. Turn it off with the Compact view switch on the phone. Also fixes the page staying in the wrong layout after a slow Bluetooth write, and the icon going missing after a quick pause.
+
 ### Release notes (1.1.0)
 
 The portal's change log is a single field of up to 500 characters, so only the `en` line

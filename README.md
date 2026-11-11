@@ -3,7 +3,7 @@
 A Pomodoro technique timer for **Even Realities G2** smart glasses, built with the Even Hub SDK.
 
 <p align="center">
-  <img src="screenshots/compact-view.gif" width="576" alt="A tap fades the paused page into the compact view: ▶ 11:30 and a mini progress bar in the top-right corner, the ▶ and the colon pulsing every second. Another tap fades back to the full page.">
+  <img src="screenshots/compact-view.gif" width="576" alt="A tap fades the paused page into the compact view: ▶ 11:30 and a mini progress bar in the top-right corner, the ▶ pulsing every second. Another tap fades back to the full page.">
 </p>
 
 <p align="center"><sub>Simulator recording: a tap starts the timer and the page fades to the compact view; a tap pauses and brings everything back.</sub></p>
@@ -14,7 +14,7 @@ A Pomodoro technique timer for **Even Realities G2** smart glasses, built with t
 - **One tap to start or pause**; Skip and Reset live in the glasses' contextual menu
 - **Pixel art icons**: tomato for work, coffee cup for breaks
 - **Text progress bar** (`▄▄▄▄▁▁▁▁`), **session dots** and the clock time the phase **ends at**
-- **Compact view**: while the timer runs, only the time and a mini progress bar stay on the glasses, dimmed in the top-right corner; the ▶ and the colon pulse with the seconds, and Start/Pause fade between the two pages. Pause to see everything (a switch on the phone turns it off)
+- **Compact view**: while the timer runs, only the time and a mini progress bar stay on the glasses, dimmed in the top-right corner; the ▶ pulses with the seconds, and Start/Pause fade between the two pages. Pause to see everything (a switch on the phone turns it off)
 - **Phase-end alert**: the glasses have no speaker or haptics, so the status line blinks (again every minute for 10 minutes) and the timer counts the extra time (`+02:13`) until you start the next phase
 - **Survives a locked phone and app restarts**: the timer runs on the wall clock and its state is saved on every change
 - **Phone companion page** in the Even app with the same controls and the timer settings

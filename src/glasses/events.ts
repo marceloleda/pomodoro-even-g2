@@ -93,8 +93,10 @@ function closeExitDialog(rebuild: boolean) {
     exitDialogTimer = null;
   }
   setDisplayCovered(false);
-  resyncTimer();
+  // Redraw before the resync: its tick would otherwise rebuild a page whose
+  // layout changed under the dialog, and then this would rebuild it again.
   void (rebuild ? renderPage() : refreshAll());
+  resyncTimer();
 }
 
 function teardown() {
@@ -147,8 +149,8 @@ function handleEvent(event: EvenHubEvent) {
       // Also fires when the contextual menu or the exit dialog opens, so this must
       // stay idempotent; under the dialog there is nothing of ours to redraw.
       if (exitDialogOpen) return;
-      resyncTimer();
       void refreshAll();
+      resyncTimer();
       return;
     case OsEventTypeList.FOREGROUND_EXIT_EVENT:
       // "No" on the exit dialog: the host cleared our page to show it, so rebuild it.

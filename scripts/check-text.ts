@@ -5,8 +5,8 @@
 import { getAdvW, measureTextWrap } from '@evenrealities/pretext';
 import {
   TEXT_PADDING, HEADER_WIDTH, BODY_WIDTH, COMPACT_TIMER_WIDTH, COMPACT_BAR_WIDTH,
-  PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, PULSE_ON, PULSE_OFF, MINI_BAR_SEGMENTS, MINI_BAR_LEVELS,
-  SETTINGS_LIMITS, OVERTIME_MAX_MS,
+  PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, MINI_BAR_SEGMENTS, MINI_BAR_LEVELS,
+  SETTINGS_LIMITS, OVERTIME_MAX_MS, compactTimerText,
 } from '../src/config.ts';
 import { LANGUAGES, STRINGS } from '../src/i18n/strings.ts';
 
@@ -28,7 +28,7 @@ const longestPhaseMinutes = Math.max(
 const widthOf = (text: string) => measureTextWrap(text, Number.MAX_SAFE_INTEGER).lineWidths[0];
 const pad = (n: number) => String(n).padStart(2, '0');
 const widestCompactTimer = Array.from({ length: longestPhaseMinutes * 60 + 1 }, (_, s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`)
-  .flatMap((time) => [`${PULSE_ON} ${time}`, `${PULSE_OFF} ${time.replace(':', ' ')}`])
+  .flatMap((time) => [compactTimerText(time, true), compactTimerText(time, false)])
   .map((text) => ({ text, width: widthOf(text) }))
   .reduce((a, b) => (b.width > a.width ? b : a)).text;
 

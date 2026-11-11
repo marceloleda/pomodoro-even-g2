@@ -2,7 +2,7 @@ import type { EvenAppBridge } from '@evenrealities/even_hub_sdk';
 import type { PomodoroMode, Settings, TimerState } from './types';
 import {
   DEFAULT_SETTINGS, PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, OVERTIME_MAX_MS,
-  PULSE_ON, PULSE_OFF, MINI_BAR_SEGMENTS, MINI_BAR_LEVELS,
+  MINI_BAR_SEGMENTS, MINI_BAR_LEVELS, compactTimerText,
 } from './config';
 import { t, formatClock } from './i18n';
 
@@ -102,11 +102,10 @@ export function buildTimerText(now = Date.now()): string {
   return formatTime(secondsLeft(now));
 }
 
-// Compact view: the ▶ and the colon blink with the seconds.
+// Compact view: the ▶ blinks with the seconds.
 export function buildCompactTimer(now = Date.now()): string {
   const seconds = secondsLeft(now);
-  const time = formatTime(seconds);
-  return seconds % 2 === 0 ? `${PULSE_ON} ${time}` : `${PULSE_OFF} ${time.replace(':', ' ')}`;
+  return compactTimerText(formatTime(seconds), seconds % 2 === 0);
 }
 
 // Compact view: each segment grows ▁ ▂ ▃ and fills ▄ before the next one starts.

@@ -6,7 +6,7 @@ import {
 } from './state';
 import { saveTimerState, saveSettings } from './storage';
 import {
-  updateTick, updateStatus, refreshAll, sendIcon, blinkStatus, cancelBlink,
+  updateTick, updateStatus, refreshAll, blinkStatus, cancelBlink,
 } from './glasses/display';
 
 // Wake slightly after the second boundary so the countdown never shows the same second twice.
@@ -111,14 +111,7 @@ function finishPhase(blink: boolean) {
   enterPhase(nextPhase(), endsAt);
   scheduleTick();
   // The user may already have started the next phase by the time the redraw is done.
-  void refreshPhaseDisplay().then(() => { if (blink && alert) blinkStatus(); });
-}
-
-// Text upgrades and an in-place icon send rather than a page rebuild: upgrades
-// are flicker-free on hardware, and the icon only goes out when the mode changes.
-async function refreshPhaseDisplay() {
-  await refreshAll();
-  await sendIcon();
+  void refreshAll().then(() => { if (blink && alert) blinkStatus(); });
 }
 
 export function startTimer() {
@@ -152,12 +145,12 @@ export function toggleTimer() {
 
 export async function skipToNext() {
   enterPhase(nextPhase());
-  await refreshPhaseDisplay();
+  await refreshAll();
 }
 
 export async function resetTimer() {
   enterPhase({ mode: 'work', cycle: 0 });
-  await refreshPhaseDisplay();
+  await refreshAll();
 }
 
 // New lengths apply to a phase that hasn't started yet; one in progress keeps its

@@ -39,9 +39,15 @@ export const COMPACT_BAR_WIDTH = 112;
 export const COMPACT_BAR_X = 576 - BODY_X - COMPACT_BAR_WIDTH;
 export const COMPACT_TIMER_X = COMPACT_BAR_X - COMPACT_TIMER_WIDTH;
 export const COMPACT_Y = 18;
-// The ▶ and the colon blink with the seconds, so the corner shows the timer is running.
+// The ▶ blinks with the seconds, so the corner shows the timer is running. ▶ and ▷
+// are equally wide; the colon stays, since a space is 1px wider and the seconds
+// would jump right and back every second.
 export const PULSE_ON = '▶';
 export const PULSE_OFF = '▷';
+// "▶ 24:13", or "▷ 24:13" between pulses. Here so check:text measures the real thing.
+export function compactTimerText(time: string, pulse: boolean): string {
+  return `${pulse ? PULSE_ON : PULSE_OFF} ${time}`;
+}
 // Each segment of the mini bar grows through these before the next one starts.
 export const MINI_BAR_SEGMENTS = 5;
 export const MINI_BAR_LEVELS = '▁▂▃▄';
