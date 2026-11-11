@@ -20,13 +20,14 @@ Stay focused with the Pomodoro technique, right in your line of sight.
 - 25-minute work sessions, 5-minute short breaks and a 15-minute long break after every 4 sessions, all adjustable on the phone
 - Tap on the temple or ring to start or pause; tap then hold for Skip and Reset
 - See the time the current phase ends at
+- Counts whole minutes, and the seconds only in the last minute, to stay out of your way and save battery (seconds can be turned back on)
 - The glasses can't play sounds, so when a phase ends the status line blinks and the timer counts the extra time until you start the next one
 - Your session keeps running with the phone locked and is still there if you close and reopen the app
 - Double-tap to exit
 
 ### Release notes (1.2.0, `en`)
 
-New compact view: while the timer runs, the glasses show only the time and a small progress bar in the top-right corner, with the ▶ pulsing each second. Tap to pause and see everything again; Start and Pause fade between the two. Turn it off with the Compact view switch on the phone. Also fixes the page staying in the wrong layout after a slow Bluetooth write, and the icon going missing after a quick pause.
+New compact view: while the timer runs, the glasses show only the time and a small progress bar in the top-right corner. Tap to pause and see everything again. The time now counts whole minutes, with seconds only in the last minute: calmer to look at and easier on the battery. Both have a switch on the phone (Compact view, Show seconds). Tidier page layout. Also fixes the page staying in the wrong layout after a slow Bluetooth write, and the icon going missing after a quick pause.
 
 ### Release notes (1.1.0)
 

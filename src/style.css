@@ -166,6 +166,13 @@ body {
   gap: 8px;
 }
 
+/* Switches carry a note under their label, so they sit further apart than the steppers. */
+.switch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .setting {
   display: flex;
   justify-content: space-between;

@@ -16,6 +16,8 @@ export interface Strings {
     alertWork: string;
     alertBreak: string;
     alertLongBreak: string;
+    // The time left in whole minutes, e.g. "24 min" (also "+3 min" of overtime)
+    minutes: (n: number) => string;
     // Footer while running; `time` is the local clock time, e.g. "14:35"
     endsAt: (time: string) => string;
     // Footer while waiting; the gesture opening the contextual menu is tap then long press
@@ -60,6 +62,9 @@ export interface Strings {
     // Switch for the compact view on the glasses, and what it does
     compactView: string;
     compactViewNote: string;
+    // Switch for counting seconds on the glasses, and what turning it off does
+    showSeconds: string;
+    showSecondsNote: string;
     helpTitle: string;
     // [gesture, what it does]
     helpGestures: Array<[string, string]>;
@@ -79,6 +84,7 @@ const en: Strings = {
     alertWork: 'Back to work!',
     alertBreak: 'Break time!',
     alertLongBreak: 'Long break time!',
+    minutes: (n) => `${n} min`,
     endsAt: (time) => `Ends at ${time}`,
     tapToStart: 'Tap to start · Tap + hold: menu',
     tapToResume: 'Tap to resume · Tap + hold: menu',
@@ -114,6 +120,8 @@ const en: Strings = {
     settingsNote: 'A phase that has already started keeps its length; changes apply from the next one.',
     compactView: 'Compact view',
     compactViewNote: 'While the timer runs, the glasses show only the time and a small progress bar, in a corner. Tap to pause and see everything.',
+    showSeconds: 'Show seconds',
+    showSecondsNote: 'When off, the glasses count whole minutes and show the seconds only in the last minute. Fewer updates save battery.',
     helpTitle: 'On your glasses',
     helpGestures: [
       ['Tap', 'Start or pause'],
@@ -134,6 +142,7 @@ const es: Strings = {
     alertWork: '¡A trabajar!',
     alertBreak: '¡Hora de descansar!',
     alertLongBreak: '¡Hora del descanso largo!',
+    minutes: (n) => `${n} min`,
     endsAt: (time) => `Termina ${isOneOClock(time) ? 'a la' : 'a las'} ${time}`,
     tapToStart: 'Toca para empezar · Toca + mantén: menú',
     tapToResume: 'Toca para reanudar · Toca + mantén: menú',
@@ -169,6 +178,8 @@ const es: Strings = {
     settingsNote: 'Una fase ya iniciada conserva su duración; los cambios se aplican desde la siguiente.',
     compactView: 'Vista compacta',
     compactViewNote: 'Mientras el temporizador corre, las gafas solo muestran el tiempo y una pequeña barra de progreso, en una esquina. Toca para pausar y ver todo.',
+    showSeconds: 'Mostrar segundos',
+    showSecondsNote: 'Si está desactivado, las gafas cuentan minutos enteros y solo muestran los segundos en el último minuto. Menos actualizaciones ahorran batería.',
     helpTitle: 'En tus gafas',
     helpGestures: [
       ['Tocar', 'Iniciar o pausar'],
@@ -189,6 +200,7 @@ const fr: Strings = {
     alertWork: 'Au travail !',
     alertBreak: "C'est la pause !",
     alertLongBreak: "C'est la pause longue !",
+    minutes: (n) => `${n} min`,
     endsAt: (time) => `Fin à ${time}`,
     tapToStart: 'Touchez pour démarrer · Touchez + maintenez : menu',
     tapToResume: 'Touchez pour reprendre · Touchez + maintenez : menu',
@@ -224,6 +236,8 @@ const fr: Strings = {
     settingsNote: "Une phase déjà commencée garde sa durée ; les changements s'appliquent à partir de la suivante.",
     compactView: 'Vue compacte',
     compactViewNote: "Pendant que le minuteur tourne, les lunettes n'affichent que le temps et une petite barre de progression, dans un coin. Touchez pour mettre en pause et tout voir.",
+    showSeconds: 'Afficher les secondes',
+    showSecondsNote: "Si désactivé, les lunettes comptent en minutes entières et n'affichent les secondes que pendant la dernière minute. Moins de mises à jour économisent la batterie.",
     helpTitle: 'Sur vos lunettes',
     helpGestures: [
       ['Toucher', 'Démarrer ou mettre en pause'],
@@ -244,6 +258,7 @@ const de: Strings = {
     alertWork: 'Zurück an die Arbeit!',
     alertBreak: 'Zeit für eine Pause!',
     alertLongBreak: 'Zeit für die lange Pause!',
+    minutes: (n) => `${n} Min.`,
     endsAt: (time) => `Endet um ${time}`,
     tapToStart: 'Tippen zum Starten · Tippen + Halten: Menü',
     tapToResume: 'Tippen zum Fortsetzen · Tippen + Halten: Menü',
@@ -279,6 +294,8 @@ const de: Strings = {
     settingsNote: 'Eine bereits gestartete Phase behält ihre Länge; Änderungen gelten ab der nächsten.',
     compactView: 'Kompaktansicht',
     compactViewNote: 'Während der Timer läuft, zeigt die Brille nur die Zeit und einen kleinen Fortschrittsbalken in einer Ecke. Tippen pausiert und zeigt wieder alles.',
+    showSeconds: 'Sekunden anzeigen',
+    showSecondsNote: 'Wenn aus, zählt die Brille in ganzen Minuten und zeigt die Sekunden nur in der letzten Minute. Weniger Aktualisierungen sparen Akku.',
     helpTitle: 'Auf deiner Brille',
     helpGestures: [
       ['Tippen', 'Starten oder pausieren'],
@@ -299,6 +316,7 @@ const it: Strings = {
     alertWork: 'Torna al lavoro!',
     alertBreak: 'È ora della pausa!',
     alertLongBreak: 'È ora della pausa lunga!',
+    minutes: (n) => `${n} min`,
     endsAt: (time) => `Termina ${isOneOClock(time) ? "all'" : 'alle '}${time}`,
     tapToStart: 'Tocca per iniziare · Tocca + tieni premuto: menu',
     tapToResume: 'Tocca per riprendere · Tocca + tieni premuto: menu',
@@ -334,6 +352,8 @@ const it: Strings = {
     settingsNote: 'Una fase già iniziata mantiene la sua durata; le modifiche valgono dalla successiva.',
     compactView: 'Vista compatta',
     compactViewNote: 'Mentre il timer scorre, gli occhiali mostrano solo il tempo e una piccola barra di avanzamento, in un angolo. Tocca per mettere in pausa e vedere tutto.',
+    showSeconds: 'Mostra i secondi',
+    showSecondsNote: "Se disattivato, gli occhiali contano i minuti interi e mostrano i secondi solo nell'ultimo minuto. Meno aggiornamenti fanno risparmiare batteria.",
     helpTitle: 'Sui tuoi occhiali',
     helpGestures: [
       ['Tocca', 'Avvia o metti in pausa'],
@@ -354,6 +374,7 @@ const zh: Strings = {
     alertWork: '该工作了！',
     alertBreak: '休息一下吧！',
     alertLongBreak: '长休息时间到了！',
+    minutes: (n) => `${n} 分钟`,
     endsAt: (time) => `${time} 结束`,
     tapToStart: '轻点开始 · 轻点 + 按住：菜单',
     tapToResume: '轻点继续 · 轻点 + 按住：菜单',
@@ -389,6 +410,8 @@ const zh: Strings = {
     settingsNote: '已开始的阶段保持原有时长，更改从下一阶段起生效。',
     compactView: '精简视图',
     compactViewNote: '计时进行时，眼镜只在角落显示时间和一个小进度条。轻点暂停即可查看全部内容。',
+    showSeconds: '显示秒数',
+    showSecondsNote: '关闭后，眼镜按整分钟计时，只在最后一分钟显示秒数。更新更少，更省电。',
     helpTitle: '在眼镜上',
     helpGestures: [
       ['轻点', '开始或暂停'],
@@ -409,6 +432,7 @@ const ja: Strings = {
     alertWork: '作業に戻りましょう！',
     alertBreak: '休憩しましょう！',
     alertLongBreak: '長い休憩の時間です！',
+    minutes: (n) => `${n} 分`,
     endsAt: (time) => `${time} に終了`,
     tapToStart: 'タップで開始 · タップ + 長押し：メニュー',
     tapToResume: 'タップで再開 · タップ + 長押し：メニュー',
@@ -444,6 +468,8 @@ const ja: Strings = {
     settingsNote: '開始済みのフェーズは長さが変わらず、変更は次のフェーズから適用されます。',
     compactView: 'コンパクト表示',
     compactViewNote: 'タイマーの作動中は、メガネの隅に時間と小さな進行バーだけを表示します。タップで一時停止すると、すべて表示されます。',
+    showSeconds: '秒を表示',
+    showSecondsNote: 'オフにすると、メガネは分単位でカウントし、最後の1分だけ秒を表示します。更新が減るため、バッテリーを節約できます。',
     helpTitle: 'メガネでの操作',
     helpGestures: [
       ['タップ', '開始・一時停止'],
@@ -464,6 +490,7 @@ const ko: Strings = {
     alertWork: '다시 작업할 시간!',
     alertBreak: '휴식 시간!',
     alertLongBreak: '긴 휴식 시간!',
+    minutes: (n) => `${n}분`,
     endsAt: (time) => `${time}에 종료`,
     tapToStart: '탭하여 시작 · 탭 + 길게 누르기: 메뉴',
     tapToResume: '탭하여 재개 · 탭 + 길게 누르기: 메뉴',
@@ -499,6 +526,8 @@ const ko: Strings = {
     settingsNote: '이미 시작한 단계는 길이가 유지되며, 변경 사항은 다음 단계부터 적용됩니다.',
     compactView: '간단히 보기',
     compactViewNote: '타이머가 돌아가는 동안 안경 모서리에 시간과 작은 진행 막대만 표시됩니다. 탭하여 일시정지하면 모든 정보가 보입니다.',
+    showSeconds: '초 표시',
+    showSecondsNote: '끄면 안경이 분 단위로 세고 마지막 1분에만 초를 표시합니다. 업데이트가 줄어 배터리가 절약됩니다.',
     helpTitle: '안경에서',
     helpGestures: [
       ['탭', '시작 또는 일시정지'],

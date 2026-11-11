@@ -26,6 +26,13 @@ const SETTING_ROWS: Array<{ key: SettingKey; label: string; format: (n: number) 
   { key: 'sessionsPerSet', label: t.phone.sessionsPerSet, format: String },
 ];
 
+// On/off settings: how the glasses show a running timer.
+type SwitchKey = 'compactView' | 'showSeconds';
+const SWITCH_ROWS: Array<{ key: SwitchKey; label: string; note: string }> = [
+  { key: 'compactView', label: t.phone.compactView, note: t.phone.compactViewNote },
+  { key: 'showSeconds', label: t.phone.showSeconds, note: t.phone.showSecondsNote },
+];
+
 // Phone-side page shown in the Even app's WebView (and in a plain browser when
 // developing). Mirrors the glasses state, offers the same actions and holds
 // the timer settings, which the glasses have no room for.
@@ -70,14 +77,15 @@ export function renderCompanion(glassesConnected: boolean) {
         </div>
         <p class="caption dim">${t.phone.settingsNote}</p>
       </section>
-      <section class="card">
-        <label class="setting" for="s-compactView">
-          <span class="setting-text">
-            <span class="setting-label">${t.phone.compactView}</span>
-            <span class="caption dim">${t.phone.compactViewNote}</span>
-          </span>
-          <input id="s-compactView" class="switch" type="checkbox" role="switch">
-        </label>
+      <section id="c-switches" class="card switch-list">
+        ${SWITCH_ROWS.map(({ key, label, note }) => `
+          <label class="setting" for="s-${key}">
+            <span class="setting-text">
+              <span class="setting-label">${label}</span>
+              <span class="caption dim">${note}</span>
+            </span>
+            <input id="s-${key}" class="switch" type="checkbox" role="switch" data-key="${key}">
+          </label>`).join('')}
       </section>
       <section class="card help">
         <h2 class="subtitle">${t.phone.helpTitle}</h2>
@@ -94,7 +102,7 @@ export function renderCompanion(glassesConnected: boolean) {
   document.getElementById('c-skip')?.addEventListener('click', () => void skipToNext());
   document.getElementById('c-reset')?.addEventListener('click', () => void resetTimer());
   document.getElementById('c-settings')?.addEventListener('click', onStepperClick);
-  document.getElementById('s-compactView')?.addEventListener('change', onCompactViewChange);
+  document.getElementById('c-switches')?.addEventListener('change', onSwitchChange);
 
   syncPolling();
   document.addEventListener('visibilitychange', syncPolling);
@@ -111,8 +119,9 @@ function onStepperClick(event: MouseEvent) {
   update();
 }
 
-function onCompactViewChange(event: Event) {
-  applySettings({ ...settings, compactView: (event.target as HTMLInputElement).checked });
+function onSwitchChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  applySettings({ ...settings, [input.dataset.key as SwitchKey]: input.checked });
   update();
 }
 
@@ -174,6 +183,8 @@ function update() {
       button.setAttribute('aria-disabled', String(atLimit));
     }
   }
-  const compactView = document.getElementById('s-compactView') as HTMLInputElement | null;
-  if (compactView) compactView.checked = settings.compactView;
+  for (const { key } of SWITCH_ROWS) {
+    const input = document.getElementById(`s-${key}`) as HTMLInputElement | null;
+    if (input) input.checked = settings[key];
+  }
 }

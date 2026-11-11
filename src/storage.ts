@@ -51,7 +51,7 @@ export async function loadSettings(): Promise<Settings | null> {
 }
 
 // Fills gaps with the defaults and keeps every number inside SETTINGS_LIMITS.
-// Settings saved by 1.1.0 have no compactView, so they get the default.
+// Settings saved by 1.1.0 have neither compactView nor showSeconds, so they get the defaults.
 export function clampSettings(s: Partial<Settings>): Settings {
   const out: Settings = { ...DEFAULT_SETTINGS };
   for (const key of Object.keys(SETTINGS_LIMITS) as Array<keyof typeof SETTINGS_LIMITS>) {
@@ -60,6 +60,7 @@ export function clampSettings(s: Partial<Settings>): Settings {
     if (Number.isFinite(v)) out[key] = Math.min(max, Math.max(min, Math.round(v!)));
   }
   if (typeof s.compactView === 'boolean') out.compactView = s.compactView;
+  if (typeof s.showSeconds === 'boolean') out.showSeconds = s.showSeconds;
   return out;
 }
 

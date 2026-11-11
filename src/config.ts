@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   longBreakMinutes: 15,
   sessionsPerSet: 4,
   compactView: true,
+  showSeconds: false,
 };
 
 // Allowed range for each numeric setting, [min, max]. Eight session dots still fit one row.
@@ -22,29 +23,58 @@ export const ICON_SIZE = 80;
 
 // Glasses layout (576x288). Every text container is one 27px line plus padding;
 // a line that wraps makes the firmware draw a scrollbar, so `npm run check:text`
-// measures every string against these widths.
+// measures every string against these widths. The full page is one block: the
+// icon on the left and, in the header column next to it, the status line, the
+// timer, the progress bar and the session dots, 40px apart. Only the footer,
+// whose hints are the longest strings, takes the whole width.
 export const TEXT_PADDING = 4;
 export const TEXT_ROW_HEIGHT = 40;
+export const ICON_X = 20;
+export const ICON_Y = 34;
 export const HEADER_X = 116;
 export const HEADER_WIDTH = 440;
+export const HEADER_Y = 14;
 export const BODY_X = 14;
 export const BODY_WIDTH = 548;
+export const FOOTER_Y = 236;
 
-// Compact view: while a phase runs, the top-right corner shows "▶ 24:13" and a
-// mini bar, each in its own container so the bar stays put while the digits
-// (which differ in width) change. The widest time ("▶ 44:44") is 79px, the bar
-// 100px; the bar keeps the body's 14px margin on the right.
-export const COMPACT_TIMER_WIDTH = 92;
+// Status line: one glyph for the timer's state, then the phase and the session
+// count. The four glyphs are equally wide (20px), so the label never moves when
+// the state changes. Here so check:text measures the real thing.
+export const STATUS_READY = '▷';
+export const STATUS_RUNNING = '▶';
+export const STATUS_PAUSED = '‖';
+export const STATUS_ALERT = '★';
+export function statusText(glyph: string, label: string, done: number, total: number): string {
+  return `${glyph}  ${label} · ${done}/${total}`;
+}
+export function alertText(message: string): string {
+  return `${STATUS_ALERT} ${message}`;
+}
+
+// Every write to the glasses is a Bluetooth round trip (about 80ms, whatever its
+// size) and wakes their radio and display, so unless the user asks for seconds
+// the time is shown in whole minutes ("24 min"): one write a minute instead of
+// sixty. Seconds still count down the last minute of a phase and count up the
+// first minute of overtime.
+export const SECONDS_WINDOW_MS = 60_000;
+
+// Compact view: while a phase runs, the top-right corner shows "▶ 24 min" (or
+// "▶ 24:13") and a mini bar, each in its own container so the bar stays put while
+// the digits (which differ in width) change. The widest time is 95px ("▶ 30 分钟";
+// "▶ 44:44" is 79px), the bar 100px; the bar keeps the body's 14px margin on the right.
+export const COMPACT_TIMER_WIDTH = 108;
 export const COMPACT_BAR_WIDTH = 112;
 export const COMPACT_BAR_X = 576 - BODY_X - COMPACT_BAR_WIDTH;
 export const COMPACT_TIMER_X = COMPACT_BAR_X - COMPACT_TIMER_WIDTH;
 export const COMPACT_Y = 18;
-// The ▶ blinks with the seconds, so the corner shows the timer is running. ▶ and ▷
-// are equally wide; the colon stays, since a space is 1px wider and the seconds
-// would jump right and back every second.
+// While the seconds show, the ▶ blinks with them, so the corner shows the timer is
+// running; with whole minutes it stays lit. ▶ and ▷ are equally wide; the colon
+// stays, since a space is 1px wider and the seconds would jump right and back
+// every second.
 export const PULSE_ON = '▶';
 export const PULSE_OFF = '▷';
-// "▶ 24:13", or "▷ 24:13" between pulses. Here so check:text measures the real thing.
+// "▶ 24 min" or "▶ 24:13", and "▷ 24:13" between pulses. Here so check:text measures the real thing.
 export function compactTimerText(time: string, pulse: boolean): string {
   return `${pulse ? PULSE_ON : PULSE_OFF} ${time}`;
 }
@@ -57,8 +87,9 @@ export const BLANK_TEXT = ' ';
 
 // Progress bar, drawn with block glyphs from the design guidelines: a half-height
 // bar over a thin track. ━/─ (3px vs 1px lines) made the filled part hard to tell
-// apart. Each glyph advances 20px, so 27 fit the 540px row; one more wraps and adds a scrollbar.
-export const PROGRESS_SEGMENTS = 26;
+// apart. Each glyph advances 20px, so 21 fit the header column's 432px; one more
+// wraps and adds a scrollbar.
+export const PROGRESS_SEGMENTS = 21;
 export const PROGRESS_FILLED = '▄';
 export const PROGRESS_EMPTY = '▁';
 
@@ -67,12 +98,6 @@ export const TEXT_BRIGHT = 4;
 export const TEXT_DIM = 2;
 // Blink "off" level for the phase-end alert; 0 may be fully dark, which is the point here
 export const TEXT_OFF = 0;
-// Start and Pause fade between the full and compact pages: the old one steps
-// down through these levels, the new one is drawn at the lowest and steps up,
-// each row stopping at its own brightness. A step is one Bluetooth write per
-// row, so there are few of them.
-export const FADE_LEVELS: readonly number[] = [1, 2];
-export const FADE_STEP_MS = 80;
 
 // Contextual menu (tap then long press). Item IDs must be non-zero.
 export const MENU_SKIP_ID = 1;

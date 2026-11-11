@@ -34,6 +34,15 @@ function drawTomatoIcon(size: number): number[] {
   ctx.ellipse(centerX, bodyY, rx, ry, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // Highlight: an unlit crescent along the body's lower right edge, so the
+  // tomato reads as round rather than as a flat blob
+  ctx.strokeStyle = OFF;
+  ctx.lineWidth = gap;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.ellipse(centerX, bodyY, rx * 0.72, ry * 0.7, 0, Math.PI * 0.08, Math.PI * 0.36);
+  ctx.stroke();
+
   // Calyx: a five-pointed star over the top of the body, cut out of it by an unlit outline
   const starY = bodyY - ry + size * 0.08;
   const outer = size * 0.26;

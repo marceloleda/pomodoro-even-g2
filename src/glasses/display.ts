@@ -6,9 +6,7 @@ import {
   ImageRawDataUpdateResult,
   StartUpPageCreateResult,
 } from '@evenrealities/even_hub_sdk';
-import {
-  ICON_SIZE, TEXT_BRIGHT, TEXT_OFF, ALERT_BLINKS, ALERT_BLINK_MS, HINT_MS, BLANK_TEXT, FADE_LEVELS, FADE_STEP_MS,
-} from '../config';
+import { ICON_SIZE, TEXT_BRIGHT, TEXT_OFF, ALERT_BLINKS, ALERT_BLINK_MS, HINT_MS } from '../config';
 import { bridge, mode, alert, isPageCreated, setPageCreated, isCompactView, buildStatusLine } from '../state';
 import {
   buildPage, rowText, CONTAINER_NAMES, VIEW_ROWS, STATUS_ID, TIMER_ID, PROGRESS_ID, FOOTER_ID, ICON_ID,
@@ -19,9 +17,16 @@ import type { PomodoroMode } from '../types';
 import { getTomatoIcon, getCoffeeIcon } from '../rendering/icons';
 import { t } from '../i18n';
 
-// Last content sent, so unchanged frames are skipped; reset whenever the page is redrawn.
-let lastProgress = '';
-let lastFooter = '';
+// Every call to the glasses costs about the same Bluetooth round trip whatever
+// it carries (measured by the community at ~80ms for a text upgrade, ~165ms for
+// a rebuild of any size, ~105ms for an image), so this module counts calls: a
+// row is only rewritten when its text changed, and several rows changing with
+// the layout go out as one rebuild.
+
+// Text last sent to each row, recorded when the write is queued: writes run in
+// order, so that is what the row ends up showing. A write that fails forgets its
+// row, which sends it again on the next tick.
+const sentText = new Map<number, string>();
 let lastIconMode: PomodoroMode | null = null;
 // Icon actually on screen; a create or rebuild leaves the image container empty.
 let shownIcon: PomodoroMode | null = null;
@@ -44,17 +49,9 @@ let hintTimer: ReturnType<typeof setTimeout> | null = null;
 // both are null after a call that timed out, when the page on screen is unknown.
 let pageView: PageView | null = null;
 let shownView: PageView | null = null;
-// Every redraw bumps fadeRun, which stops a fade in progress. A fade keeps its run
-// in fadeOwner: until the next redraw its rows may be dimmed, even if it was cut short.
-let fadeRun = 0;
-let fadeOwner = -1;
 
 function canDraw(): boolean {
   return !!bridge && isPageCreated && !suspended && !covered;
-}
-
-function fading(): boolean {
-  return fadeOwner === fadeRun;
 }
 
 function currentView(): PageView {
@@ -72,33 +69,46 @@ async function writeText(containerID: number, content: string, textColor?: numbe
   const b = bridge;
   if (!b || !canDraw() || !pageView || !VIEW_ROWS[pageView].has(containerID)) return;
   const containerName = CONTAINER_NAMES[containerID];
+  sentText.set(containerID, content);
+  let ok = false;
   try {
-    const ok = await enqueue(`textContainerUpgrade(${containerName})`, () =>
+    ok = await enqueue(`textContainerUpgrade(${containerName})`, () =>
       b.textContainerUpgrade(new TextContainerUpgrade({ containerID, containerName, content, textColor })));
     if (!ok) console.warn(`[pomodoro] textContainerUpgrade(${containerName}) returned false`);
   } catch (err) {
     console.error(`[pomodoro] textContainerUpgrade(${containerName}) failed:`, err);
   }
+  // Unless a newer write or a new page has replaced it since.
+  if (!ok && sentText.get(containerID) === content) sentText.delete(containerID);
 }
 
 // A row's current text on the page being shown, read when the write is queued.
-// Without `level` the row keeps its brightness, so a tick doesn't undo a fade.
+// Without `level` the row keeps its brightness.
 function writeRow(containerID: number, level?: number): Promise<void> {
   return pageView ? writeText(containerID, rowText(containerID, pageView), level) : Promise.resolve();
 }
 
+// The same, unless the row already shows that text.
+function writeChanged(containerID: number): Promise<void> {
+  if (!pageView || !canDraw()) return Promise.resolve();
+  const text = rowText(containerID, pageView);
+  return sentText.get(containerID) === text ? Promise.resolve() : writeText(containerID, text);
+}
+
 // Draws the whole page: the startup page the first time, a rebuild after that.
-// A fade draws it dimmed to `maxLevel` and sends the icon itself once the rows
-// are lit; any other redraw stops a fade. Returns whether the page was drawn.
-export async function renderPage(maxLevel?: number): Promise<boolean> {
+// Returns whether the page was drawn.
+export async function renderPage(): Promise<boolean> {
   const b = bridge;
   if (!b) return false;
-  if (maxLevel === undefined) stopFade();
   cancelBlink();
   cancelHint();
   const view = currentView();
-  const page = buildPage(view, maxLevel);
+  const page = buildPage(view);
   pageView = view;
+  // Recorded now, not once the page is up: a tick during the call is compared
+  // with what the page was built with, and its write is queued behind the page.
+  sentText.clear();
+  for (const row of page.textObject) sentText.set(row.containerID!, row.content!);
   try {
     let created = false;
     if (!startupCalled) {
@@ -115,17 +125,20 @@ export async function renderPage(maxLevel?: number): Promise<boolean> {
       if (!rebuilt) {
         console.error('[pomodoro] rebuildPageContainer failed');
         pageView = shownView;
+        sentText.clear();
         return false;
       }
     }
     shownView = view;
     setPageCreated(true);
-    lastProgress = rowText(PROGRESS_ID, view);
-    lastFooter = rowText(FOOTER_ID, view);
     // Image containers start empty after the page is created or rebuilt.
     lastIconMode = null;
     shownIcon = null;
-    if (maxLevel === undefined) await sendIcon();
+    // The clock may have moved on while the page was drawn, and the next tick can
+    // be a minute away.
+    await writeChanged(TIMER_ID);
+    await writeChanged(PROGRESS_ID);
+    await sendIcon();
     // Drawing the page cancelled any blink; a pending alert (including one from a
     // phase that ended while the app was closed) starts blinking again.
     if (alert) blinkStatus();
@@ -135,6 +148,7 @@ export async function renderPage(maxLevel?: number): Promise<boolean> {
     // A call that timed out may still go through, so either page could be up:
     // the next redraw rebuilds it.
     pageView = shownView = null;
+    sentText.clear();
     return false;
   }
 }
@@ -167,137 +181,67 @@ export async function sendIcon(): Promise<void> {
   if (shownIcon !== null && shownIcon !== mode) await renderPage();
 }
 
-// Called every second while the countdown or the overtime counter runs: the
-// timer row always changes (on the compact page the pulse too), the bar only
-// when it gains a segment, or on the compact page a step. A page left in the
-// wrong layout (a switch that failed or timed out) is rebuilt here, unless a
-// fade is switching it.
+// Called whenever the time or the bar on screen is due to change (timer.ts wakes
+// up for exactly that): each row is written only if its text did. A page left in
+// the wrong layout (a switch that failed or timed out) is rebuilt here.
 export async function updateTick(): Promise<void> {
-  if (canDraw() && viewChanged() && !fading()) {
+  if (canDraw() && viewChanged()) {
     await renderPage();
     return;
   }
-  await writeRow(TIMER_ID);
-  const progress = pageView && rowText(PROGRESS_ID, pageView);
-  if (progress && progress !== lastProgress && canDraw()) {
-    lastProgress = progress;
-    await writeText(PROGRESS_ID, progress);
-  }
+  await writeChanged(TIMER_ID);
+  await writeChanged(PROGRESS_ID);
 }
 
-// Start and Pause change the status line and the footer, or with the compact
-// view on, fade to the other page.
+// Start and Pause. With the compact view on they swap pages: one rebuild, which
+// takes about as long as two text writes and changes every row at once. A page
+// that wasn't drawn is retried right away, since a paused timer has no tick to
+// do it later. Otherwise the status line, the timer and the footer change in place.
 export async function updateStatus(): Promise<void> {
   cancelBlink();
   if (!canDraw()) return;
-  if (viewChanged()) return fadeToView();
-  // Tapped again mid-fade, back to the page it started from: undim every row.
-  if (fading()) return refreshAll();
+  if (viewChanged()) {
+    if (!(await renderPage()) && canDraw() && viewChanged()) await renderPage();
+    return;
+  }
+  // At full brightness, in case a blink was cut short on its dark half.
   await writeRow(STATUS_ID, TEXT_BRIGHT);
-  await writeRow(TIMER_ID);
+  await writeChanged(TIMER_ID);
   await updateFooter();
 }
 
 async function updateFooter(): Promise<void> {
   cancelHint();
-  if (!pageView || !canDraw()) return;
-  const footer = rowText(FOOTER_ID, pageView);
-  if (footer === lastFooter) return;
-  lastFooter = footer;
-  await writeText(FOOTER_ID, footer);
+  await writeChanged(FOOTER_ID);
 }
 
-// Every row at its own brightness, which also undoes a fade or a blink, and the
-// icon if the page lacks it; a new page if the layout changed. Phase changes come
-// here rather than to a rebuild: text upgrades are flicker-free on hardware, and
-// the icon only goes out when the mode changes.
+// Every row at its own brightness, which also undoes a blink, and the icon if
+// the page lacks it; a new page if the layout changed. Phase changes come here
+// rather than to a rebuild: text upgrades are flicker-free on hardware, and the
+// icon only goes out when the mode changes. Also the redraw after the glasses
+// were away (taken off, another app in front), so nothing is skipped as unchanged.
 export async function refreshAll(): Promise<void> {
   if (!canDraw()) return;
-  stopFade();
   if (viewChanged() || !pageView) {
     await renderPage();
     return;
   }
   cancelBlink();
   cancelHint();
-  lastProgress = rowText(PROGRESS_ID, pageView);
-  lastFooter = rowText(FOOTER_ID, pageView);
   for (const [containerID, level] of VIEW_ROWS[pageView]) await writeRow(containerID, level);
-  await sendIcon();
-}
-
-function stopFade() {
-  fadeRun++;
-}
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-// Moves every row with text toward `level`, each capped at its own brightness.
-// `shown` holds each row's level, so rows already there aren't rewritten. Stops
-// as soon as the fade does, so a cut-short fade doesn't mix with the redraw.
-async function stepRows(level: number, shown: Map<number, number>, live: () => boolean): Promise<boolean> {
-  const view = pageView;
-  if (!view) return false;
-  let wrote = false;
-  for (const [containerID, own] of VIEW_ROWS[view]) {
-    if (!live()) break;
-    const next = Math.min(level, own);
-    if (shown.get(containerID) === next || rowText(containerID, view) === BLANK_TEXT) continue;
-    shown.set(containerID, next);
-    wrote = true;
-    await writeRow(containerID, next);
-  }
-  return wrote;
-}
-
-// Start and Pause switch layouts with a fade: the old page dims through
-// FADE_LEVELS, the new one is drawn at the lowest and brightens back up. Each
-// step waits for its writes, so a slow link makes it slower, never out of order.
-// Any other redraw stops it and puts every row back at its own brightness.
-async function fadeToView(): Promise<void> {
-  stopFade();
-  const run = fadeRun;
-  fadeOwner = run;
-  const live = () => run === fadeRun && canDraw();
-  const floor = FADE_LEVELS[0];
-  let shown = new Map(pageView ? VIEW_ROWS[pageView] : []);
-  for (const level of [...FADE_LEVELS].reverse()) {
-    if (await stepRows(level, shown, live)) await sleep(FADE_STEP_MS);
-    if (!live()) return;
-  }
-  // Brightening the old rows back would leave the wrong page up (a frozen
-  // "▶ 24:13" after Pause), so a page that wasn't drawn is retried at full brightness.
-  if (!(await renderPage(floor))) {
-    if (live()) await refreshAll();
-    return;
-  }
-  if (!pageView) return;
-  shown = new Map([...VIEW_ROWS[pageView]].map(([containerID, own]) => [containerID, Math.min(floor, own)]));
-  for (const level of [...FADE_LEVELS.slice(1), TEXT_BRIGHT]) {
-    await sleep(FADE_STEP_MS);
-    if (!live()) return;
-    await stepRows(level, shown, live);
-  }
-  if (!live()) return;
-  stopFade();
-  // Only now: the image has no brightness to fade, and its transfer would stall the fade.
   await sendIcon();
 }
 
 // A swipe has nothing to scroll, so it shows the gestures in the footer for a
 // few seconds: every gesture gets a visible response, as the review requires.
 export async function showGestureHint(): Promise<void> {
-  // A fade would write over the hint, so the switch finishes first.
-  if (fading()) await refreshAll();
   if (!canDraw() || !pageView) return;
   cancelHint();
-  lastFooter = t.glasses.gestureHint;
   hintTimer = setTimeout(() => {
     hintTimer = null;
-    void updateFooter();
+    void writeChanged(FOOTER_ID);
   }, HINT_MS);
-  // At the footer's own brightness: the blank compact footer is left out of fades.
-  await writeText(FOOTER_ID, lastFooter, VIEW_ROWS[pageView].get(FOOTER_ID));
+  await writeText(FOOTER_ID, t.glasses.gestureHint, VIEW_ROWS[pageView].get(FOOTER_ID));
 }
 
 function cancelHint() {
@@ -344,7 +288,6 @@ export function setDisplayCovered(value: boolean) {
 
 // After the app exits nothing may reach the glasses, not even a pending hint or blink.
 export function shutdownDisplay() {
-  stopFade();
   cancelBlink();
   cancelHint();
   setPageCreated(false);

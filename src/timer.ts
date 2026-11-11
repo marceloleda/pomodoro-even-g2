@@ -2,28 +2,40 @@ import type { Settings, TimerState } from './types';
 import { ALERT_REPEAT_MS, ALERT_REPEATS, OVERTIME_MAX_MS } from './config';
 import {
   mode, cycle, running, remainingMs, alert, endedAt, endsAt,
-  updateTimerState, setSettings, phaseDurationMs, msLeft, isPhaseUntouched,
+  updateTimerState, setSettings, phaseDurationMs, msLeft, isPhaseUntouched, countsSeconds, msToNextBarStep,
 } from './state';
 import { saveTimerState, saveSettings } from './storage';
 import {
   updateTick, updateStatus, refreshAll, blinkStatus, cancelBlink,
 } from './glasses/display';
 
-// Wake slightly after the second boundary so the countdown never shows the same second twice.
+// Wake slightly after the boundary so the countdown never shows the same time twice.
 const TICK_MARGIN_MS = 10;
 // Stepping a setting on the phone several times in a row saves and redraws once.
 const SETTINGS_COMMIT_MS = 300;
 
 let tickTimeout: ReturnType<typeof setTimeout> | null = null;
 let renderInFlight = false;
+let renderQueued = false;
 // When the phase-end alert blinks again; 0 once it has stopped repeating.
 let nextReblinkAt = 0;
 let settingsCommitTimer: ReturnType<typeof setTimeout> | null = null;
 
+// One updateTick at a time. A tick that lands while one is writing runs after it
+// rather than being dropped: the next one may be a minute away.
 function scheduleRender() {
-  if (renderInFlight) return;
+  if (renderInFlight) {
+    renderQueued = true;
+    return;
+  }
   renderInFlight = true;
-  void updateTick().finally(() => { renderInFlight = false; });
+  void updateTick().finally(() => {
+    renderInFlight = false;
+    if (renderQueued) {
+      renderQueued = false;
+      scheduleRender();
+    }
+  });
 }
 
 function clearTick() {
@@ -35,27 +47,31 @@ function clearTick() {
 
 // The time shown is always derived from the wall clock (endsAt, endedAt), so a
 // throttled or suspended WebView catches up on the next tick instead of drifting.
-// Ticks run while the countdown runs and, after a phase ends, while the
-// overtime counter is counting up.
+// Ticks run while the countdown runs and, after a phase ends, while the overtime
+// counter is counting up. The next one is when the glasses next have something
+// new to show: the time changes every second or every minute (countsSeconds), and
+// the progress bar at its own steps. Nothing wakes up in between.
 function scheduleTick() {
   clearTick();
+  const now = Date.now();
+  const unit = countsSeconds(now) ? 1000 : 60_000;
   let delay: number;
   if (running) {
-    const left = msLeft();
+    const left = msLeft(now);
     if (left <= 0) {
       finishPhase(true);
       return;
     }
-    // Next wake-up is when the displayed second changes.
-    delay = left % 1000 || 1000;
+    delay = Math.min(left % unit || unit, msToNextBarStep(now));
   } else if (alert && endedAt) {
-    const over = Date.now() - endedAt;
+    const over = now - endedAt;
     if (over >= OVERTIME_MAX_MS) return;
-    delay = 1000 - (over % 1000);
+    // Whole minutes of overtime are also when the alert blinks again.
+    delay = unit - (over % unit);
   } else {
     return;
   }
-  tickTimeout = setTimeout(onTick, delay + TICK_MARGIN_MS);
+  tickTimeout = setTimeout(onTick, Math.max(0, delay) + TICK_MARGIN_MS);
 }
 
 function onTick() {
@@ -102,7 +118,14 @@ function enterPhase(next: Pick<TimerState, 'mode' | 'cycle'>, phaseEndedAt = 0) 
     endedAt: phaseEndedAt,
   });
   nextReblinkAt = phaseEndedAt ? nextReblinkSlot() : 0;
+}
+
+// The redraw is queued before the save: both go through the one bridge queue,
+// and what the user is waiting for is the glasses.
+function redrawThenSave(redraw: () => Promise<void>): Promise<void> {
+  const drawn = redraw();
   saveTimerState();
+  return drawn;
 }
 
 // The glasses can't beep, so instead of rolling into the next phase unnoticed
@@ -111,7 +134,7 @@ function finishPhase(blink: boolean) {
   enterPhase(nextPhase(), endsAt);
   scheduleTick();
   // The user may already have started the next phase by the time the redraw is done.
-  void refreshAll().then(() => { if (blink && alert) blinkStatus(); });
+  void redrawThenSave(refreshAll).then(() => { if (blink && alert) blinkStatus(); });
 }
 
 export function startTimer() {
@@ -119,17 +142,15 @@ export function startTimer() {
   clearTick();
   updateTimerState({ running: true, endsAt: Date.now() + remainingMs, alert: false, endedAt: 0 });
   nextReblinkAt = 0;
-  saveTimerState();
   scheduleTick();
-  void updateStatus();
+  void redrawThenSave(updateStatus);
 }
 
 export function pauseTimer() {
   if (!running) return;
   clearTick();
   updateTimerState({ running: false, remainingMs: msLeft(), endsAt: 0 });
-  saveTimerState();
-  void updateStatus();
+  void redrawThenSave(updateStatus);
 }
 
 export function toggleTimer() {
@@ -145,12 +166,12 @@ export function toggleTimer() {
 
 export async function skipToNext() {
   enterPhase(nextPhase());
-  await refreshAll();
+  await redrawThenSave(refreshAll);
 }
 
 export async function resetTimer() {
   enterPhase({ mode: 'work', cycle: 0 });
-  await refreshAll();
+  await redrawThenSave(refreshAll);
 }
 
 // New lengths apply to a phase that hasn't started yet; one in progress keeps its
@@ -165,9 +186,13 @@ export function applySettings(next: Settings) {
   if (settingsCommitTimer) clearTimeout(settingsCommitTimer);
   settingsCommitTimer = setTimeout(() => {
     settingsCommitTimer = null;
+    // The redraw before the resync, whose tick would otherwise rebuild a page
+    // that changed layout and then this would draw it again. The resync because
+    // the settings decide when the next tick is due (seconds or minutes, which bar).
+    void refreshAll();
+    resyncTimer();
     saveSettings();
     saveTimerState();
-    void refreshAll();
   }, SETTINGS_COMMIT_MS);
 }
 

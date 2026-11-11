@@ -6,7 +6,8 @@ import { getAdvW, measureTextWrap } from '@evenrealities/pretext';
 import {
   TEXT_PADDING, HEADER_WIDTH, BODY_WIDTH, COMPACT_TIMER_WIDTH, COMPACT_BAR_WIDTH,
   PROGRESS_SEGMENTS, PROGRESS_FILLED, PROGRESS_EMPTY, MINI_BAR_SEGMENTS, MINI_BAR_LEVELS,
-  SETTINGS_LIMITS, OVERTIME_MAX_MS, compactTimerText,
+  SETTINGS_LIMITS, OVERTIME_MAX_MS, STATUS_READY, STATUS_RUNNING, STATUS_PAUSED,
+  statusText, alertText, compactTimerText,
 } from '../src/config.ts';
 import { LANGUAGES, STRINGS } from '../src/i18n/strings.ts';
 
@@ -22,15 +23,19 @@ const longestOvertime = `+${overtimeMaxMinutes}:${String((OVERTIME_MAX_MS / 1000
 
 // The compact view only shows while a phase runs, so never the overtime. Digits
 // differ in width, so every countdown up to the longest phase is measured, with
-// the pulse on ("▶ 24:13") and off ("▷ 24 13").
+// the pulse on ("▶ 24:13") and off ("▷ 24:13"), and in each language every count
+// of whole minutes ("▶ 24 min").
 const longestPhaseMinutes = Math.max(
   SETTINGS_LIMITS.workMinutes[1], SETTINGS_LIMITS.shortBreakMinutes[1], SETTINGS_LIMITS.longBreakMinutes[1]);
 const widthOf = (text: string) => measureTextWrap(text, Number.MAX_SAFE_INTEGER).lineWidths[0];
-const pad = (n: number) => String(n).padStart(2, '0');
-const widestCompactTimer = Array.from({ length: longestPhaseMinutes * 60 + 1 }, (_, s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`)
-  .flatMap((time) => [compactTimerText(time, true), compactTimerText(time, false)])
+const widest = (texts: string[]) => texts
   .map((text) => ({ text, width: widthOf(text) }))
   .reduce((a, b) => (b.width > a.width ? b : a)).text;
+const pad = (n: number) => String(n).padStart(2, '0');
+const minuteCounts = Array.from({ length: longestPhaseMinutes }, (_, i) => i + 1);
+const widestCompactTimer = widest(
+  Array.from({ length: longestPhaseMinutes * 60 + 1 }, (_, s) => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`)
+    .flatMap((time) => [compactTimerText(time, true), compactTimerText(time, false)]));
 
 // formatClock (src/i18n/index.ts) uses the device locale, which can be any of
 // these whatever the app language is; the widest result is what counts.
@@ -49,9 +54,9 @@ function checkLine(lang: string, what: string, text: string, innerWidth: number)
   if (lineCount > 1) problems.push(`${lang} ${what}: wraps (${lineWidths.join('+')}px > ${innerWidth}px) "${text}"`);
 }
 
-checkLine('all', 'progress bar', PROGRESS_FILLED.repeat(PROGRESS_SEGMENTS), bodyInner);
-checkLine('all', 'progress track', PROGRESS_EMPTY.repeat(PROGRESS_SEGMENTS), bodyInner);
-checkLine('all', 'session dots', Array(maxSessions).fill('●').join(' '), bodyInner);
+checkLine('all', 'progress bar', PROGRESS_FILLED.repeat(PROGRESS_SEGMENTS), headerInner);
+checkLine('all', 'progress track', PROGRESS_EMPTY.repeat(PROGRESS_SEGMENTS), headerInner);
+checkLine('all', 'session dots', Array(maxSessions).fill('●').join(' '), headerInner);
 checkLine('all', 'timer', longestOvertime, headerInner);
 checkLine('all', 'compact timer', widestCompactTimer, compactTimerInner);
 for (const level of MINI_BAR_LEVELS) checkLine('all', 'mini bar', level.repeat(MINI_BAR_SEGMENTS), compactBarInner);
@@ -59,13 +64,16 @@ for (const level of MINI_BAR_LEVELS) checkLine('all', 'mini bar', level.repeat(M
 for (const lang of LANGUAGES) {
   const g = STRINGS[lang].glasses;
   for (const [key, label] of Object.entries({ work: g.work, shortBreak: g.shortBreak, longBreak: g.longBreak })) {
-    for (const icon of ['▶', '| |']) {
-      checkLine(lang, `status ${key}`, `${icon}  ${label} · ${maxSessions}/${maxSessions}`, headerInner);
+    for (const glyph of [STATUS_READY, STATUS_RUNNING, STATUS_PAUSED]) {
+      checkLine(lang, `status ${key}`, statusText(glyph, label, maxSessions, maxSessions), headerInner);
     }
   }
   for (const [key, alert] of Object.entries({ alertWork: g.alertWork, alertBreak: g.alertBreak, alertLongBreak: g.alertLongBreak })) {
-    checkLine(lang, key, `★ ${alert}`, headerInner);
+    checkLine(lang, key, alertText(alert), headerInner);
   }
+  checkLine(lang, 'minutes', g.minutes(longestPhaseMinutes), headerInner);
+  checkLine(lang, 'overtime minutes', `+${g.minutes(overtimeMaxMinutes)}`, headerInner);
+  checkLine(lang, 'compact minutes', widest(minuteCounts.map((n) => compactTimerText(g.minutes(n), true))), compactTimerInner);
   for (const clock of clockSamples) checkLine(lang, 'endsAt', g.endsAt(clock), bodyInner);
   checkLine(lang, 'tapToStart', g.tapToStart, bodyInner);
   checkLine(lang, 'tapToResume', g.tapToResume, bodyInner);

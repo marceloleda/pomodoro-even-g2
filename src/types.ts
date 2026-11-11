@@ -24,4 +24,7 @@ export interface Settings {
   sessionsPerSet: number;
   // While a phase runs, the glasses show only the time, in a corner.
   compactView: boolean;
+  // The glasses count every second. Off, they count whole minutes (and seconds
+  // only in a phase's last minute), which takes far fewer Bluetooth writes.
+  showSeconds: boolean;
 }

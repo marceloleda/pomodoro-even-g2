@@ -5,13 +5,13 @@ import {
   MenuItemProperty,
 } from '@evenrealities/even_hub_sdk';
 import {
-  ICON_SIZE, TEXT_BRIGHT, TEXT_DIM, TEXT_PADDING, TEXT_ROW_HEIGHT,
-  HEADER_X, HEADER_WIDTH, BODY_X, BODY_WIDTH,
+  ICON_SIZE, ICON_X, ICON_Y, TEXT_BRIGHT, TEXT_DIM, TEXT_PADDING, TEXT_ROW_HEIGHT,
+  HEADER_X, HEADER_Y, HEADER_WIDTH, BODY_X, BODY_WIDTH, FOOTER_Y,
   COMPACT_TIMER_X, COMPACT_TIMER_WIDTH, COMPACT_BAR_X, COMPACT_BAR_WIDTH, COMPACT_Y, BLANK_TEXT,
   MENU_SKIP_ID, MENU_RESET_ID,
 } from '../config';
 import {
-  buildStatusLine, buildTimerText, buildCompactTimer, buildSessionDots, buildProgressBar, buildMiniBar, buildFooter,
+  buildStatusLine, buildGlassesTimer, buildCompactTimer, buildSessionDots, buildProgressBar, buildMiniBar, buildFooter,
 } from '../state';
 import { t } from '../i18n';
 
@@ -28,7 +28,7 @@ export const CONTAINER_NAMES: Record<number, string> = {
 };
 
 // The full page, or while a phase runs (if the setting is on) the compact one:
-// "▶ 24:13" and a mini bar in the top-right corner, and a footer left blank but
+// "▶ 24 min" and a mini bar in the top-right corner, and a footer left blank but
 // for the gesture hint. It has no icon.
 export type PageView = 'full' | 'compact';
 
@@ -44,14 +44,12 @@ export function rowText(containerID: number, view: PageView): string {
   const compact = view === 'compact';
   switch (containerID) {
     case STATUS_ID: return buildStatusLine();
-    case TIMER_ID: return compact ? buildCompactTimer() : buildTimerText();
+    case TIMER_ID: return compact ? buildCompactTimer() : buildGlassesTimer();
     case PROGRESS_ID: return compact ? buildMiniBar() : buildProgressBar();
     case DOTS_ID: return buildSessionDots();
     default: return compact ? BLANK_TEXT : buildFooter();
   }
 }
-
-const FOOTER_Y = 236;
 
 // One text row: lines are 27px tall on the G2, and a container whose height
 // minus padding is smaller than that overflows into a scrollbar.
@@ -66,10 +64,9 @@ function textRow(containerID: number, x: number, y: number, width: number, conte
   });
 }
 
-// `maxLevel` caps every row's brightness, for a page that fades in.
-export function buildPage(view: PageView, maxLevel = TEXT_BRIGHT) {
+export function buildPage(view: PageView) {
   const row = (containerID: number, x: number, y: number, width: number) => textRow(
-    containerID, x, y, width, rowText(containerID, view), Math.min(maxLevel, VIEW_ROWS[view].get(containerID)!));
+    containerID, x, y, width, rowText(containerID, view), VIEW_ROWS[view].get(containerID)!);
 
   // Skip and Reset live in the system contextual menu (tap then long press).
   // A rebuild without menuObject clears it, so every page carries it.
@@ -83,9 +80,10 @@ export function buildPage(view: PageView, maxLevel = TEXT_BRIGHT) {
   // The timer row takes the input: a tap starts or pauses, so the page needs no
   // on-screen menu. Its text never wraps, so the firmware has nothing to scroll.
   const compact = view === 'compact';
-  const timerText = compact
-    ? row(TIMER_ID, COMPACT_TIMER_X, COMPACT_Y, COMPACT_TIMER_WIDTH)
-    : row(TIMER_ID, HEADER_X, 58, HEADER_WIDTH);
+  // The header column's rows, one line each.
+  const header = (containerID: number, line: number) =>
+    row(containerID, HEADER_X, HEADER_Y + line * TEXT_ROW_HEIGHT, HEADER_WIDTH);
+  const timerText = compact ? row(TIMER_ID, COMPACT_TIMER_X, COMPACT_Y, COMPACT_TIMER_WIDTH) : header(TIMER_ID, 1);
   timerText.isEventCapture = 1;
 
   if (compact) {
@@ -98,16 +96,16 @@ export function buildPage(view: PageView, maxLevel = TEXT_BRIGHT) {
   }
 
   const iconImg = new ImageContainerProperty({
-    xPosition: 20, yPosition: 24,
+    xPosition: ICON_X, yPosition: ICON_Y,
     width: ICON_SIZE, height: ICON_SIZE,
     containerID: ICON_ID, containerName: 'icon',
   });
 
   const textObject = [
-    row(STATUS_ID, HEADER_X, 18, HEADER_WIDTH),
+    header(STATUS_ID, 0),
     timerText,
-    row(PROGRESS_ID, BODY_X, 124, BODY_WIDTH),
-    row(DOTS_ID, BODY_X, 168, BODY_WIDTH),
+    header(PROGRESS_ID, 2),
+    header(DOTS_ID, 3),
     row(FOOTER_ID, BODY_X, FOOTER_Y, BODY_WIDTH),
   ];
 
